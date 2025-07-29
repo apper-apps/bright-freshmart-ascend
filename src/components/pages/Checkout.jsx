@@ -15,7 +15,7 @@ import Account from "@/components/pages/Account";
 import Input from "@/components/atoms/Input";
 import Button from "@/components/atoms/Button";
 import { clearCart } from "@/store/cartSlice";
-import { formatCurrency } from "@/utils/currency";
+import formatCurrency from "@/utils/currency";
 
 function Checkout() {
   const navigate = useNavigate();
@@ -1157,10 +1157,10 @@ paymentResult.transactionId = transactionId;
                                   )}
                                 </div>
                               </div>
-                            )}
+)}
                           </div>
                         </div>
-</div>
+                      </div>
                     ))}
                   </div>
                 )}
