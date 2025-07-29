@@ -19,7 +19,7 @@ import {
 import { Button } from '@/components/atoms/Button';
 import { Input } from '@/components/atoms/Input';
 import PaymentMethod from '@/components/molecules/PaymentMethod';
-import { ChatWidget } from '@/components/molecules/ChatWidget';
+import ChatWidget from '@/components/molecules/ChatWidget';
 import { clearCart } from '@/store/cartSlice';
 import { orderService } from '@/services/api/orderService';
 import { paymentService } from '@/services/api/paymentService';
