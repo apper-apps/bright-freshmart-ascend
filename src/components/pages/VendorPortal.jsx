@@ -1249,7 +1249,7 @@ const VendorAvailabilityTab = ({ vendor }) => {
     };
   }, [vendor]);
 
-  const loadPendingAvailabilityOrders = async () => {
+const loadPendingAvailabilityOrders = async () => {
     if (!vendor) return;
     
     setLoading(true);
@@ -1260,7 +1260,7 @@ const VendorAvailabilityTab = ({ vendor }) => {
       const pendingOrders = await orderService.getPendingAvailabilityRequests();
       const allOrders = await orderService.getAll();
       
-      // Phase 1: Include orders with immediate vendor visibility
+      // Phase 1: Include orders with immediate vendor visibility - NEW ORDERS PRIORITIZED
       const immediateOrders = allOrders.filter(order => 
         order.vendor_visibility === 'immediate' && 
         (order.status === 'awaiting_payment_verification' || order.status === 'pending')
@@ -1276,7 +1276,17 @@ const VendorAvailabilityTab = ({ vendor }) => {
         return order.items?.some(item => (item.productId % 3 + 1) === vendor.Id);
       });
       
-      setOrders(vendorOrders);
+      // Sort orders - new orders (awaiting payment verification) appear at TOP with highest priority
+      const sortedOrders = vendorOrders.sort((a, b) => {
+        // Priority 1: New orders awaiting payment verification (RED PRIORITY)
+        if (a.status === 'awaiting_payment_verification' && b.status !== 'awaiting_payment_verification') return -1;
+        if (b.status === 'awaiting_payment_verification' && a.status !== 'awaiting_payment_verification') return 1;
+        
+        // Priority 2: Most recent orders first
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      });
+      
+      setOrders(sortedOrders);
     } catch (error) {
       console.error('Error loading availability orders:', error);
       setError(error.message);
@@ -1373,13 +1383,13 @@ const VendorAvailabilityTab = ({ vendor }) => {
   };
 
   // Phase 1: Enhanced status display for immediate visibility orders
-  const getOrderStatusBadge = (order) => {
+const getOrderStatusBadge = (order) => {
     if (order.vendor_visibility === 'immediate') {
       if (order.status === 'awaiting_payment_verification') {
         return (
-          <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-medium rounded-full flex items-center">
-            <ApperIcon name="Clock" size={12} className="mr-1" />
-            Awaiting Payment Verification
+          <span className="px-3 py-1 bg-red-100 text-red-800 text-xs font-medium rounded-full flex items-center animate-pulse">
+            <ApperIcon name="AlertCircle" size={12} className="mr-1" />
+            🔴 NEW ORDER - IMMEDIATE ATTENTION
           </span>
         );
       }
@@ -1461,7 +1471,11 @@ const VendorAvailabilityTab = ({ vendor }) => {
           const vendorProducts = order.items?.filter(item => (item.productId % 3 + 1) === vendor.Id) || [];
           
           return (
-            <div key={order.id} className="bg-white rounded-lg shadow-sm border overflow-hidden">
+<div key={order.id} className={`rounded-lg shadow-sm border overflow-hidden ${
+              order.status === 'awaiting_payment_verification' 
+                ? 'bg-red-50 border-l-4 border-l-red-500 border-red-200' 
+                : 'bg-white border-gray-200'
+            }`}>
               <div className="p-4">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center space-x-4">

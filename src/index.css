@@ -485,3 +485,42 @@
     @apply min-h-[44px] min-w-[44px] flex items-center justify-center;
   }
 }
+
+/* New Order Priority Styling - Red Alert for Immediate Attention */
+.new-order-alert {
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 50%, #fecaca 100%);
+  border-left: 4px solid #dc2626;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.15);
+  animation: new-order-pulse 2s infinite;
+}
+
+@keyframes new-order-pulse {
+  0%, 100% { 
+    transform: scale(1); 
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.15);
+  }
+  50% { 
+    transform: scale(1.002); 
+    box-shadow: 0 6px 16px rgba(220, 38, 38, 0.25);
+  }
+}
+
+/* Priority Badge Animation for New Orders */
+.priority-badge-new {
+  animation: priority-flash 1.5s infinite;
+  background: linear-gradient(45deg, #dc2626, #ef4444);
+  color: white;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+@keyframes priority-flash {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+
+/* Red Alert Icon Styling */
+.alert-icon-new {
+  color: #dc2626;
+  filter: drop-shadow(0 1px 2px rgba(220, 38, 38, 0.3));
+}

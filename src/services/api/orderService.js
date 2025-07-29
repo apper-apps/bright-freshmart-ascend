@@ -137,9 +137,9 @@ const newOrder = {
       priceApprovalRequired: orderData.priceApprovalRequired || false,
       // Vendor availability tracking (JSONB structure)
       vendor_availability: vendorAvailability,
-      // Real-time vendor visibility for Phase 1 implementation
+      // Real-time vendor visibility for Phase 1 implementation - new orders immediately visible
       vendor_visibility: orderData.vendor_visibility || 'immediate',
-      // Initial status for vendor portal display
+      // Initial status for vendor portal display - new orders require immediate attention
       status: orderData.status || 'awaiting_payment_verification',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
