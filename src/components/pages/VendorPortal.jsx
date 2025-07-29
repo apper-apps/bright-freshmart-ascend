@@ -11,8 +11,8 @@ import Loading from "@/components/ui/Loading";
 import Error from "@/components/ui/Error";
 import Orders from "@/components/pages/Orders";
 import Category from "@/components/pages/Category";
-import { Input } from "@/components/atoms/Input";
-import { Button } from "@/components/atoms/Button";
+import Input from "@/components/atoms/Input";
+import Button from "@/components/atoms/Button";
 import { formatCurrency, calculateTotals } from "@/utils/currency";
 const VendorPortal = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -1204,50 +1204,6 @@ function VendorOrdersTab({ vendor, showCompleted = false }) {
   );
 }
 
-// Calculate totals for vendor products
-const calculateTotals = (products, fields) => {
-  if (!products || products.length === 0) {
-    return {
-      totalCost: 0,
-      totalSellingValue: 0,
-      totalMargin: 0,
-      averageMargin: 0
-    };
-  }
-
-  const totals = products.reduce((acc, product) => {
-    const cost = product[fields.costField] || 0;
-    const selling = product[fields.sellingField] || 0;
-    const quantity = product[fields.quantityField] || 0;
-    
-    acc.totalCost += cost * quantity;
-    acc.totalSellingValue += selling * quantity;
-    acc.totalMargin += (selling - cost) * quantity;
-    
-    return acc;
-  }, {
-    totalCost: 0,
-    totalSellingValue: 0,
-    totalMargin: 0
-  });
-
-  const averageMargin = totals.totalCost > 0 
-    ? ((totals.totalSellingValue - totals.totalCost) / totals.totalCost) * 100 
-    : 0;
-
-  return {
-    ...totals,
-    averageMargin: Math.round(averageMargin * 100) / 100
-  };
-};
-
-// Calculate price change helper function
-const calculatePriceChange = (formData, product) => {
-  if (product.price > 0) {
-    return ((formData.price - product.price) / product.price) * 100;
-  }
-  return 0;
-};
 
 // Get order status badge helper function
 const getOrderStatusBadge = (order) => {
@@ -1922,8 +1878,7 @@ const VendorPackingTab = ({ vendor }) => {
 
   const handleStartPacking = (order) => {
     setSelectedOrder(order);
-    setPackingData({
-    setPackingData({
+setPackingData({
       orderId: order.id,
       items: order.items?.filter(item => (item.productId % 3 + 1) === vendor.Id).map(item => {
         const fieldConfig = productUnitService.getFieldConfig(item);
@@ -2359,7 +2314,6 @@ const handlePackingComplete = async () => {
                 }}
                 variant="outline"
               >
-                Cancel
 Cancel
               </Button>
               <Button
