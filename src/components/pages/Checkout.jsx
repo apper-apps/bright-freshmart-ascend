@@ -15,7 +15,7 @@ import Account from "@/components/pages/Account";
 import Input from "@/components/atoms/Input";
 import Button from "@/components/atoms/Button";
 import { clearCart } from "@/store/cartSlice";
-import formatCurrency from "@/utils/currency";
+import { formatCurrency } from "@/utils/currency";
 
 function Checkout() {
   const navigate = useNavigate();
@@ -32,15 +32,17 @@ function Checkout() {
     city: '',
     postalCode: '',
     instructions: ''
-  });
+});
   const [paymentProof, setPaymentProof] = useState(null);
   const [paymentProofPreview, setPaymentProofPreview] = useState(null);
   const [uploadLoading, setUploadLoading] = useState(false);
-const [transactionId, setTransactionId] = useState('');
+  const [transactionId, setTransactionId] = useState('');
   const [errors, setErrors] = useState({});
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isCompressing, setIsCompressing] = useState(false);
-
+  const [uploadAttempts, setUploadAttempts] = useState(0);
+  const [lastUploadError, setLastUploadError] = useState(null);
+  const [showAlternativeOptions, setShowAlternativeOptions] = useState(false);
   // Calculate totals with validated pricing and deals
   const calculateCartTotals = () => {
     let subtotal = 0;
@@ -83,7 +85,56 @@ const [transactionId, setTransactionId] = useState('');
   const gatewayFee = calculateGatewayFee(subtotal);
 useEffect(() => {
     loadPaymentMethods();
+    loadSavedProgress();
   }, []);
+
+  // Load saved form progress from localStorage
+  function loadSavedProgress() {
+    try {
+      const savedProgress = localStorage.getItem('checkout-progress');
+      if (savedProgress) {
+        const data = JSON.parse(savedProgress);
+        if (data.formData) {
+          setFormData(prevData => ({ ...prevData, ...data.formData }));
+        }
+        if (data.paymentMethod) {
+          setPaymentMethod(data.paymentMethod);
+        }
+        if (data.transactionId) {
+          setTransactionId(data.transactionId);
+        }
+        toast.info('Previous form data restored');
+      }
+    } catch (error) {
+      console.warn('Failed to load saved progress:', error);
+    }
+  }
+
+  // Save form progress to localStorage
+  function saveProgress() {
+    try {
+      const progressData = {
+        formData,
+        paymentMethod,
+        transactionId,
+        timestamp: Date.now()
+      };
+      localStorage.setItem('checkout-progress', JSON.stringify(progressData));
+    } catch (error) {
+      console.warn('Failed to save progress:', error);
+    }
+  }
+
+  // Auto-save progress when form data changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (formData.name || formData.phone || formData.address) {
+        saveProgress();
+      }
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [formData, paymentMethod, transactionId]);
   async function loadPaymentMethods() {
     try {
       const methods = await paymentService.getAvailablePaymentMethods();
@@ -96,10 +147,12 @@ useEffect(() => {
       if (enabledMethods.length > 0) {
         setPaymentMethod(enabledMethods[0].id);
       }
+console.error('Failed to load payment methods:', error);
+      toast.error('Failed to load payment options');
     } catch (error) {
       console.error('Failed to load payment methods:', error);
       toast.error('Failed to load payment options');
-}
+    }
   }
 
   function calculateGatewayFee(currentSubtotal = 0) {
@@ -123,11 +176,10 @@ useEffect(() => {
     if (errors[name]) {
       setErrors(prev => ({
         ...prev,
-        [name]: ''
+[name]: ''
       }));
-}
+    }
   }
-
 // Helper function to compress image
   async function compressImage(file, maxSizeMB = 3) {
     return new Promise((resolve, reject) => {
@@ -182,7 +234,7 @@ useEffect(() => {
     });
   }
 
-  async function handleFileUpload(e) {
+async function handleFileUpload(e, isRetry = false) {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -191,6 +243,12 @@ useEffect(() => {
       setUploadLoading(true);
       setUploadProgress(0);
       setIsCompressing(false);
+      setShowAlternativeOptions(false);
+      
+      if (!isRetry) {
+        setUploadAttempts(0);
+        setLastUploadError(null);
+      }
       
       // Clear any previous errors
       if (errors.paymentProof) {
@@ -200,76 +258,134 @@ useEffect(() => {
         }));
       }
 
-      // Validate file type with better detection
+      // Enhanced file validation with better error messages
       const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
       const fileType = file.type.toLowerCase();
       
-      // Check for HEIC files which browsers don't handle well
+      // Check for HEIC files and offer conversion guidance
       if (file.name.toLowerCase().includes('.heic') || file.name.toLowerCase().includes('.heif')) {
+        setLastUploadError({
+          type: 'unsupported_format',
+          message: 'HEIC format not supported',
+          guidance: 'Please convert to JPG or PNG using your phone\'s photo app or an online converter'
+        });
         toast.error('HEIC format not supported. Please convert to JPG or PNG first.');
         setUploadLoading(false);
+        setShowAlternativeOptions(true);
         return;
       }
       
       if (!allowedTypes.includes(fileType)) {
+        setLastUploadError({
+          type: 'invalid_format',
+          message: 'Invalid file format',
+          guidance: 'Only JPG, PNG, and WebP images are supported'
+        });
         toast.error('Please upload a JPG, PNG, or WebP image file');
         setUploadLoading(false);
+        setShowAlternativeOptions(true);
         return;
       }
 
       setUploadProgress(20);
 
+      // Enhanced file size validation with progressive limits
+      if (file.size > 15 * 1024 * 1024) { // 15MB absolute limit
+        setLastUploadError({
+          type: 'file_too_large',
+          message: 'File too large',
+          guidance: 'Maximum file size is 15MB. Please resize your image or take a new photo'
+        });
+        toast.error('File is too large. Maximum size is 15MB.');
+        setUploadLoading(false);
+        setShowAlternativeOptions(true);
+        return;
+      }
+
       // Check file size and compress if needed
       let processedFile = file;
       if (file.size > 3 * 1024 * 1024) { // 3MB threshold for compression
-        if (file.size > 10 * 1024 * 1024) { // 10MB absolute limit
-          toast.error('File is too large. Maximum size is 10MB.');
-          setUploadLoading(false);
-          return;
-        }
-        
         setIsCompressing(true);
         toast.info('Large file detected. Compressing image...');
         setUploadProgress(40);
         
         try {
           processedFile = await compressImage(file);
-          toast.success(`Image compressed from ${(file.size / 1024 / 1024).toFixed(1)}MB to ${(processedFile.size / 1024 / 1024).toFixed(1)}MB`);
+          const originalSize = (file.size / 1024 / 1024).toFixed(1);
+          const compressedSize = (processedFile.size / 1024 / 1024).toFixed(1);
+          toast.success(`Image compressed from ${originalSize}MB to ${compressedSize}MB`);
         } catch (compressionError) {
           console.warn('Compression failed, using original file:', compressionError);
-          toast.warn('Could not compress image, using original file');
-          processedFile = file;
+          
+          // If compression fails but file is still under 8MB, proceed
+          if (file.size <= 8 * 1024 * 1024) {
+            toast.warn('Could not compress image, using original file');
+            processedFile = file;
+          } else {
+            setLastUploadError({
+              type: 'compression_failed',
+              message: 'Image compression failed',
+              guidance: 'Please resize your image manually or try a different photo'
+            });
+            throw new Error('Compression failed and file too large');
+          }
         }
         
         setIsCompressing(false);
       }
 
-      // Final size check
-      if (processedFile.size > 5 * 1024 * 1024) {
-        toast.error('File size must be under 5MB. Please resize your image.');
+      // Final size check after compression
+      if (processedFile.size > 8 * 1024 * 1024) {
+        setLastUploadError({
+          type: 'size_after_compression',
+          message: 'File still too large after compression',
+          guidance: 'Please take a new photo or resize your image'
+        });
+        toast.error('File size must be under 8MB. Please resize your image.');
         setUploadLoading(false);
+        setShowAlternativeOptions(true);
         return;
       }
 
       setUploadProgress(70);
 
-      // Create preview
+      // Create preview with enhanced error handling
       const reader = new FileReader();
       reader.onload = (e) => {
-        setUploadProgress(100);
-        setPaymentProofPreview(e.target.result);
-        setPaymentProof(processedFile);
-        setUploadLoading(false);
-        
-        const savings = file.size !== processedFile.size 
-          ? ` (compressed from ${(file.size / 1024 / 1024).toFixed(1)}MB)`
-          : '';
-        toast.success(`Payment proof uploaded successfully${savings}`);
+        try {
+          setUploadProgress(100);
+          setPaymentProofPreview(e.target.result);
+          setPaymentProof(processedFile);
+          setUploadLoading(false);
+          setUploadAttempts(0);
+          setLastUploadError(null);
+          setShowAlternativeOptions(false);
+          
+          // Save the successful upload state
+          const progressData = JSON.parse(localStorage.getItem('checkout-progress') || '{}');
+          progressData.hasPaymentProof = true;
+          progressData.uploadSuccess = true;
+          localStorage.setItem('checkout-progress', JSON.stringify(progressData));
+          
+          const savings = file.size !== processedFile.size 
+            ? ` (compressed from ${(file.size / 1024 / 1024).toFixed(1)}MB)`
+            : '';
+          toast.success(`Payment proof uploaded successfully${savings}`);
+        } catch (previewError) {
+          throw new Error('Failed to create image preview');
+        }
       };
       
-      reader.onerror = () => {
+      reader.onerror = (readerError) => {
+        console.error('FileReader error:', readerError);
+        setLastUploadError({
+          type: 'read_failed',
+          message: 'Failed to read image file',
+          guidance: 'The image file may be corrupted. Please try a different photo'
+        });
         setUploadLoading(false);
         setUploadProgress(0);
+        setShowAlternativeOptions(true);
         toast.error('Failed to process image. Please try a different file.');
       };
       
@@ -281,14 +397,54 @@ useEffect(() => {
       setUploadProgress(0);
       setIsCompressing(false);
       
-      // Enhanced error messages
-      if (error.message.includes('network') || error.message.includes('fetch')) {
-        toast.error('Network error. Please check your connection and try again.');
-      } else if (error.message.includes('compression')) {
-        toast.error('Image processing failed. Please try a different image.');
+      const currentAttempts = uploadAttempts + 1;
+      setUploadAttempts(currentAttempts);
+      
+      // Enhanced error classification and user guidance
+      let errorMessage = 'Upload failed. Please try again.';
+      let shouldShowAlternatives = false;
+      let errorDetails = null;
+      
+      if (error.message.includes('network') || error.message.includes('fetch') || error.message.includes('connection')) {
+        errorMessage = 'Network error. Please check your connection and try again.';
+        errorDetails = {
+          type: 'network_error',
+          message: 'Network connection issue',
+          guidance: 'Check your internet connection or try connecting to a different network'
+        };
+        shouldShowAlternatives = currentAttempts >= 2;
+      } else if (error.message.includes('compression') || error.message.includes('processing')) {
+        errorMessage = 'Image processing failed. Please try a different image.';
+        errorDetails = {
+          type: 'processing_error',
+          message: 'Image processing failed',
+          guidance: 'Try taking a new photo or using a different image'
+        };
+        shouldShowAlternatives = true;
+      } else if (error.message.includes('memory') || error.message.includes('resource')) {
+        errorMessage = 'Device memory issue. Please try a smaller image.';
+        errorDetails = {
+          type: 'memory_error',
+          message: 'Insufficient device memory',
+          guidance: 'Close other apps and try again, or use a smaller image'
+        };
+        shouldShowAlternatives = true;
       } else {
-        toast.error('Upload failed. Please try again or contact support.');
+        errorMessage = 'Upload failed. Please try again or contact support.';
+        errorDetails = {
+          type: 'unknown_error',
+          message: 'Unknown upload error',
+          guidance: 'Try again in a few moments or contact support for assistance'
+        };
+        shouldShowAlternatives = currentAttempts >= 1;
       }
+      
+      setLastUploadError(errorDetails);
+      setShowAlternativeOptions(shouldShowAlternatives);
+      
+      toast.error(errorMessage, {
+        duration: shouldShowAlternatives ? 6000 : 4000
+      });
     }
   }
 
@@ -301,11 +457,12 @@ useEffect(() => {
     toast.info('Payment proof removed');
   }
 
-  function handleUploadRetry() {
+function handleUploadRetry() {
     // Reset upload states
     setUploadLoading(false);
     setUploadProgress(0);
     setIsCompressing(false);
+    setErrors(prev => ({ ...prev, paymentProof: '' }));
     
     // Clear the current file input and trigger new selection
     const fileInput = document.getElementById('payment-proof-upload');
@@ -313,6 +470,65 @@ useEffect(() => {
       fileInput.value = '';
       fileInput.click();
     }
+  }
+
+  function handleSmartRetry() {
+    // Intelligent retry based on error type
+    if (lastUploadError?.type === 'network_error') {
+      // Check network status before retry
+      if (!navigator.onLine) {
+        toast.error('No internet connection. Please check your network and try again.');
+        return;
+      }
+      
+      // Wait briefly for network to stabilize
+      setTimeout(() => {
+        handleUploadRetry();
+      }, 1000);
+    } else {
+      handleUploadRetry();
+    }
+  }
+
+  function handleAlternativeUpload(method) {
+    const orderDetails = `Order Details:
+- Amount: Rs. ${total.toLocaleString()}
+- Items: ${cart.length} items
+- Payment Method: ${availablePaymentMethods.find(m => m.id === paymentMethod)?.name || paymentMethod}
+- Transaction ID: ${transactionId}
+- Customer: ${formData.name}
+- Phone: ${formData.phone}`;
+
+    if (method === 'email') {
+      const subject = encodeURIComponent('Payment Proof - Order Submission');
+      const body = encodeURIComponent(`Hello,
+
+I am unable to upload my payment proof directly on the website. Please find the payment screenshot attached to this email.
+
+${orderDetails}
+
+Please process my order once you verify the payment.
+
+Thank you!`);
+      
+      window.location.href = `mailto:orders@freshmart.com?subject=${subject}&body=${body}`;
+      toast.info('Email client opened. Please attach your payment proof and send.');
+    } else if (method === 'whatsapp') {
+      const message = encodeURIComponent(`Hello! I need help uploading my payment proof for my order.
+
+${orderDetails}
+
+I will send the payment screenshot in the next message. Please help me complete my order.`);
+      
+      window.open(`https://wa.me/923001234567?text=${message}`, '_blank');
+      toast.info('WhatsApp opened. Please send your payment proof there.');
+    }
+
+    // Mark that customer used alternative method
+    const progressData = JSON.parse(localStorage.getItem('checkout-progress') || '{}');
+    progressData.alternativeUploadUsed = method;
+    progressData.alternativeUploadTime = Date.now();
+    localStorage.setItem('checkout-progress', JSON.stringify(progressData));
   }
 
   function validateForm() {
@@ -345,10 +561,9 @@ useEffect(() => {
       }
     }
 
-    setErrors(newErrors);
-return Object.keys(newErrors).length === 0;
+setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   }
-
   async function handlePaymentRetry() {
     try {
       setLoading(true);
@@ -383,11 +598,10 @@ return Object.keys(newErrors).length === 0;
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
+reader.onerror = reject;
       reader.readAsDataURL(file);
-});
+    });
   }
-
   async function completeOrder(paymentResult) {
     try {
       let paymentProofData = null;
@@ -514,9 +728,9 @@ const order = await orderService.create(orderData);
       navigate('/orders');
       return order;
     } catch (error) {
-      toast.error('Failed to create order: ' + error.message);
+toast.error('Failed to create order: ' + error.message);
       throw error;
-}
+    }
   }
 
   async function handleSubmit(e, isRetry = false) {
@@ -597,10 +811,10 @@ const order = await orderService.create(orderData);
         paymentResult.transactionId = transactionId;
       }
 
-      // Complete the order
+// Complete the order
       await completeOrder(paymentResult);
       
-} catch (error) {
+    } catch (error) {
       console.error('Order submission error:', error);
       
       // Track error for monitoring
@@ -1024,33 +1238,73 @@ value={formData.instructions}
                         </div>
                       )}
 
-                      {errors.paymentProof && (
-                        <div className="mt-2 bg-red-50 border border-red-200 rounded-lg p-3 upload-error-animate">
-                          <div className="flex items-center space-x-2">
-                            <ApperIcon name="AlertCircle" size={16} className="text-red-500" />
-                            <p className="text-sm text-red-600">{errors.paymentProof}</p>
-                          </div>
-                          <div className="mt-2 flex space-x-2">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="small"
-                              onClick={handleUploadRetry}
-                              className="text-red-600 border-red-300 hover:bg-red-50"
-                            >
-                              <ApperIcon name="RefreshCw" size={14} className="mr-1" />
-                              Retry Upload
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="small"
-                              onClick={() => toast.info('Contact support at +92-300-SUPPORT for assistance')}
-                              className="text-blue-600 border-blue-300 hover:bg-blue-50"
-                            >
-                              <ApperIcon name="MessageCircle" size={14} className="mr-1" />
-                              Contact Support
-                            </Button>
+{(errors.paymentProof || lastUploadError) && (
+                        <div className="mt-2 bg-red-50 border border-red-200 rounded-lg p-4 upload-error-animate">
+                          <div className="flex items-start space-x-3">
+                            <ApperIcon name="AlertCircle" size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-red-800">
+                                {lastUploadError?.message || errors.paymentProof}
+                              </p>
+                              {lastUploadError?.guidance && (
+                                <p className="text-xs text-red-600 mt-1">
+                                  {lastUploadError.guidance}
+                                </p>
+                              )}
+                              
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="small"
+                                  onClick={handleSmartRetry}
+                                  className="text-red-600 border-red-300 hover:bg-red-50 retry-button-enhanced"
+                                >
+                                  <ApperIcon name="RefreshCw" size={14} className="mr-1" />
+                                  Try Again
+                                  {uploadAttempts > 0 && (
+                                    <span className="text-xs ml-1">({uploadAttempts} attempts)</span>
+                                  )}
+                                </Button>
+                                
+                                {showAlternativeOptions && (
+                                  <>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="small"
+                                      onClick={() => handleAlternativeUpload('email')}
+                                      className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                                    >
+                                      <ApperIcon name="Mail" size={14} className="mr-1" />
+                                      Email Support
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="small"
+                                      onClick={() => handleAlternativeUpload('whatsapp')}
+                                      className="text-green-600 border-green-300 hover:bg-green-50"
+                                    >
+                                      <ApperIcon name="MessageCircle" size={14} className="mr-1" />
+                                      WhatsApp Help
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                              
+                              {showAlternativeOptions && (
+                                <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                  <div className="flex items-start space-x-2">
+                                    <ApperIcon name="Info" size={16} className="text-yellow-600 flex-shrink-0 mt-0.5" />
+                                    <div className="text-xs text-yellow-800">
+                                      <p className="font-medium mb-1">Having trouble uploading?</p>
+                                      <p>You can send your payment proof via email or WhatsApp. We'll process your order manually.</p>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       )}
@@ -1118,14 +1372,35 @@ value={formData.instructions}
 
               {/* Submit Button */}
               <div className="card p-6">
-<Button
-                  type="submit"
-                  disabled={loading || uploadLoading || (paymentMethod !== 'cash' && !paymentProof)}
-                  className="w-full"
-                >
-                  {loading ? 'Processing...' : `Place Order - Rs. ${total.toLocaleString()}`}
-                </Button>
-</div>
+<div className="space-y-3">
+                  {/* Progress indicator */}
+                  {(formData.name || formData.phone || formData.address) && (
+                    <div className="text-center">
+                      <div className="flex items-center justify-center space-x-2 text-sm text-gray-600">
+                        <ApperIcon name="Save" size={16} className="text-green-500" />
+                        <span>Progress automatically saved</span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <Button
+                    type="submit"
+                    disabled={loading || uploadLoading || (paymentMethod !== 'cash' && !paymentProof && !showAlternativeOptions)}
+                    className="w-full"
+                  >
+                    {loading ? 'Processing...' : `Place Order - Rs. ${total.toLocaleString()}`}
+                  </Button>
+                  
+                  {/* Alternative submission note */}
+                  {showAlternativeOptions && paymentMethod !== 'cash' && !paymentProof && (
+                    <div className="text-center p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm text-blue-800">
+                        You can still place your order. We'll verify your payment manually after you send the proof via email or WhatsApp.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
             </form>
           </div>
         </div>

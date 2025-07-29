@@ -1,18 +1,29 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { productService } from '@/services/api/productService';
-import { toast } from 'react-toastify';
+import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
+import { toast } from "react-toastify";
+import React from "react";
+import { productService } from "@/services/api/productService";
+import Error from "@/components/ui/Error";
+import { calculateTotals } from "@/utils/currency";
 
 const initialState = {
   items: [],
   total: 0,
   itemCount: 0,
   isLoading: false,
-  error: null,
+error: null,
   priceValidationCache: {},
   lastValidated: null,
   dealsSummary: {
     totalSavings: 0,
     appliedDeals: []
+  },
+  checkoutProgress: {
+    formData: {},
+    paymentMethod: null,
+    transactionId: '',
+    hasPaymentProof: false,
+    uploadSuccess: false,
+    lastSaved: null
   }
 };
 
@@ -329,13 +340,33 @@ calculateTotals: (state) => {
       }
     },
     
-    setError: (state, action) => {
+setError: (state, action) => {
       state.error = action.payload;
     },
     
     clearError: (state) => {
       state.error = null;
+    },
+    
+    updateCheckoutProgress: (state, action) => {
+      state.checkoutProgress = {
+        ...state.checkoutProgress,
+        ...action.payload,
+        lastSaved: Date.now()
+      };
+    },
+    
+    clearCheckoutProgress: (state) => {
+      state.checkoutProgress = {
+        formData: {},
+        paymentMethod: null,
+        transactionId: '',
+        hasPaymentProof: false,
+        uploadSuccess: false,
+        lastSaved: null
+      };
     }
+  },
   },
   extraReducers: (builder) => {
     builder
@@ -427,7 +458,9 @@ export const {
   calculateTotals,
   setError,
   clearError,
-  updatePricesFromValidation
+  updatePricesFromValidation,
+  updateCheckoutProgress,
+  clearCheckoutProgress
 } = cartSlice.actions;
 
 // Export async thunks

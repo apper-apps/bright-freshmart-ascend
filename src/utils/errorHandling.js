@@ -47,17 +47,48 @@ export class ErrorHandler {
     }
   }
 
-static shouldRetry(error, attemptCount = 0, maxRetries = 3) {
+static shouldRetry(error, attemptCount = 0, maxRetries = 3, context = '') {
     if (attemptCount >= maxRetries) return false;
     
     const type = this.classifyError(error);
+    const message = error.message?.toLowerCase() || '';
+    
+    // Upload-specific retry logic
+    if (context.includes('upload') || context.includes('file')) {
+      // More aggressive retry for upload operations
+      const uploadRetryableTypes = ['network', 'timeout', 'server'];
+      
+      if (uploadRetryableTypes.includes(type)) {
+        // Don't retry file format or size errors
+        if (message.includes('format') || message.includes('size') || message.includes('type')) {
+          return false;
+        }
+        
+        // Don't retry permanent upload errors
+        if (message.includes('unsupported') || message.includes('invalid')) {
+          return false;
+        }
+        
+        // Retry network issues more aggressively for uploads
+        if (type === 'network') {
+          return attemptCount < Math.min(maxRetries + 2, 5);
+        }
+        
+        // Retry timeout issues for uploads
+        if (type === 'timeout') {
+          return attemptCount < Math.min(maxRetries + 1, 4);
+        }
+        
+        return attemptCount < maxRetries;
+      }
+      
+      return false;
+    }
+    
+    // Original retry logic for non-upload operations
     const retryableTypes = ['network', 'timeout', 'server'];
     
-    // Enhanced retry logic with specific error patterns
     if (retryableTypes.includes(type)) {
-      // Additional checks for specific error messages
-      const message = error.message?.toLowerCase() || '';
-      
       // Don't retry certain permanent errors
       if (message.includes('404') || message.includes('forbidden') || message.includes('unauthorized')) {
         return false;
@@ -137,6 +168,40 @@ export class NetworkMonitor {
   }
 }
 
+// File upload specific error wrapper
+export const withUploadErrorHandling = (uploadMethod, context = 'File upload', maxRetries = 3) => {
+  return async (...args) => {
+    let attemptCount = 0;
+    
+    while (attemptCount <= maxRetries) {
+      try {
+        return await uploadMethod(...args);
+      } catch (error) {
+        console.error(`${context} error (attempt ${attemptCount + 1}):`, error);
+        
+        // Track upload-specific error patterns
+        ErrorHandler.trackErrorPattern(error, `${context}-attempt-${attemptCount + 1}`);
+        
+        if (ErrorHandler.shouldRetry(error, attemptCount, maxRetries, context)) {
+          attemptCount++;
+          const delay = ErrorHandler.getRetryDelay(attemptCount, 2000); // Longer delay for uploads
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        
+        // Create upload-specific error message
+        const userMessage = ErrorHandler.createUserFriendlyMessage(error, context);
+        const uploadError = new Error(userMessage);
+        uploadError.originalError = error;
+        uploadError.attemptCount = attemptCount + 1;
+        uploadError.isUploadError = true;
+        
+        throw uploadError;
+      }
+    }
+  };
+};
+
 // Service layer error wrapper
 export const withErrorHandling = (serviceMethod, context) => {
   return async (...args) => {
@@ -148,7 +213,7 @@ export const withErrorHandling = (serviceMethod, context) => {
       } catch (error) {
         console.error(`${context} error (attempt ${attemptCount + 1}):`, error);
         
-        if (ErrorHandler.shouldRetry(error, attemptCount)) {
+        if (ErrorHandler.shouldRetry(error, attemptCount, 3, context)) {
           attemptCount++;
           const delay = ErrorHandler.getRetryDelay(attemptCount);
           await new Promise(resolve => setTimeout(resolve, delay));
