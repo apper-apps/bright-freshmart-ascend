@@ -15,7 +15,7 @@ import Account from "@/components/pages/Account";
 import Input from "@/components/atoms/Input";
 import Button from "@/components/atoms/Button";
 import { clearCart } from "@/store/cartSlice";
-import { formatCurrency } from "@/utils/currency";
+import formatCurrency from "@/utils/currency";
 
 function Checkout() {
   const navigate = useNavigate();
@@ -82,8 +82,9 @@ function Checkout() {
 
   const totals = calculateCartTotals();
   const { originalSubtotal, dealSavings, subtotal, deliveryCharge, total } = totals;
-  const gatewayFee = calculateGatewayFee(subtotal);
-useEffect(() => {
+const gatewayFee = calculateGatewayFee(subtotal);
+
+  useEffect(() => {
     loadPaymentMethods();
     loadSavedProgress();
   }, []);
@@ -143,12 +144,10 @@ useEffect(() => {
       setAvailablePaymentMethods(enabledMethods);
       setGatewayConfig(config || {});
       
-      // Set default payment method to first enabled method
+// Set default payment method to first enabled method
       if (enabledMethods.length > 0) {
         setPaymentMethod(enabledMethods[0].id);
       }
-console.error('Failed to load payment methods:', error);
-      toast.error('Failed to load payment options');
     } catch (error) {
       console.error('Failed to load payment methods:', error);
       toast.error('Failed to load payment options');
@@ -174,9 +173,9 @@ console.error('Failed to load payment methods:', error);
     }));
     // Clear error when user starts typing
     if (errors[name]) {
-      setErrors(prev => ({
+setErrors(prev => ({
         ...prev,
-[name]: ''
+        [name]: ''
       }));
     }
   }
@@ -559,11 +558,12 @@ I will send the payment screenshot in the next message. Please help me complete 
       if (!paymentProof) {
         newErrors.paymentProof = 'Payment proof is required';
       }
-    }
+}
 
-setErrors(newErrors);
+    setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }
+  
   async function handlePaymentRetry() {
     try {
       setLoading(true);
@@ -596,13 +596,14 @@ setErrors(newErrors);
   // Convert file to base64 for safe serialization
   async function convertFileToBase64(file) {
     return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-reader.onerror = reject;
+reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
       reader.readAsDataURL(file);
     });
   }
+
   async function completeOrder(paymentResult) {
+    try {
     try {
       let paymentProofData = null;
       
@@ -720,19 +721,18 @@ reader.onerror = reject;
           amount: validatedTotal,
           processedAt: paymentResult.timestamp
         } : null
-      };
+};
 
-const order = await orderService.create(orderData);
+      const order = await orderService.create(orderData);
       clearCartHook();
       toast.success('Order placed successfully!');
       navigate('/orders');
       return order;
     } catch (error) {
-toast.error('Failed to create order: ' + error.message);
+      toast.error('Failed to create order: ' + error.message);
       throw error;
     }
   }
-
   async function handleSubmit(e, isRetry = false) {
     e.preventDefault();
     if (!validateForm()) {
@@ -808,10 +808,10 @@ toast.error('Failed to create order: ' + error.message);
 
       // Override system-generated transaction ID with user-provided one for non-cash payments
       if (paymentResult && transactionId && paymentMethod !== 'cash') {
-        paymentResult.transactionId = transactionId;
+paymentResult.transactionId = transactionId;
       }
 
-// Complete the order
+      // Complete the order
       await completeOrder(paymentResult);
       
     } catch (error) {
@@ -941,9 +941,9 @@ toast.error('Failed to create order: ' + error.message);
                         <p className="text-sm text-gray-600">Qty: {item.quantity}</p>
                       </div>
                     </div>
-                    <span className="font-semibold">
+<span className="font-semibold">
                       Rs. {(item.price * item.quantity).toLocaleString()}
-</span>
+                    </span>
                   </div>
                 ))}
                 <div className="border-t pt-4 space-y-2">
@@ -1058,14 +1058,14 @@ toast.error('Failed to create order: ' + error.message);
                   </div>
                   <div>
                     <Input
+<Input
                       label="Delivery Instructions"
                       name="instructions"
-value={formData.instructions}
+                      value={formData.instructions}
                       onChange={handleInputChange}
                       placeholder="Special instructions for delivery..."
                     />
                   </div>
-                </div>
               </div>
               {/* Payment Method */}
               <div className="card p-6">
@@ -1150,9 +1150,9 @@ value={formData.instructions}
                                         <ApperIcon name="Copy" size={14} />
                                       </button>
                                     </div>
-                                  </div>
+)}
                                   {method.instructions && (
-<div className="pt-2 border-t border-blue-200">
+                                    <div className="pt-2 border-t border-blue-200">
                                       <p className="text-xs text-blue-700">{method.instructions}</p>
                                     </div>
                                   )}
@@ -1164,9 +1164,9 @@ value={formData.instructions}
                       </div>
                     ))}
                   </div>
-                )}
+)}
                 
-{/* Payment Details for Non-Cash Methods */}
+                {/* Payment Details for Non-Cash Methods */}
                 {paymentMethod !== 'cash' && (
                   <div className="mt-4 space-y-4">
                     {/* Transaction ID Input */}
@@ -1207,9 +1207,9 @@ value={formData.instructions}
                             <span className="text-xs text-gray-400">PNG, JPG, WebP up to 5MB</span>
                           </label>
                         </div>
-                      )}
+)}
 
-{uploadLoading && (
+                      {uploadLoading && (
                         <div className="border-2 border-dashed border-blue-300 bg-blue-50 rounded-lg p-6 text-center">
                           <div className="space-y-3">
                             {isCompressing ? (
@@ -1236,11 +1236,11 @@ value={formData.instructions}
                             )}
                           </div>
                         </div>
+</div>
                       )}
 
-{(errors.paymentProof || lastUploadError) && (
+                      {(errors.paymentProof || lastUploadError) && (
                         <div className="mt-2 bg-red-50 border border-red-200 rounded-lg p-4 upload-error-animate">
-                          <div className="flex items-start space-x-3">
                             <ApperIcon name="AlertCircle" size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
                             <div className="flex-1">
                               <p className="text-sm font-medium text-red-800">
@@ -1361,18 +1361,17 @@ value={formData.instructions}
                             <li>• Copy the transaction ID and enter it in the field above</li>
                             <li>• Take a clear screenshot of the payment confirmation</li>
                             <li>• Upload the screenshot for verification</li>
-                            <li>• Your order will be processed after payment verification</li>
+<li>• Your order will be processed after payment verification</li>
                           </ul>
-</div>
-</div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
               </div>
-
-              {/* Submit Button */}
+{/* Submit Button */}
               <div className="card p-6">
-<div className="space-y-3">
+                <div className="space-y-3">
                   {/* Progress indicator */}
                   {(formData.name || formData.phone || formData.address) && (
                     <div className="text-center">
@@ -1404,9 +1403,8 @@ value={formData.instructions}
             </form>
           </div>
         </div>
-      </div>
+</div>
     </div>
-    );
+  );
 }
-
 export default Checkout;

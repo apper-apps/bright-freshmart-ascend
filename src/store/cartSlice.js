@@ -365,8 +365,7 @@ setError: (state, action) => {
         uploadSuccess: false,
         lastSaved: null
       };
-    }
-  },
+}
   },
   extraReducers: (builder) => {
     builder
