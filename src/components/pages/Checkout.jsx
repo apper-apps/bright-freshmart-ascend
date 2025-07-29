@@ -16,8 +16,7 @@ import Account from "@/components/pages/Account";
 import Input from "@/components/atoms/Input";
 import Button from "@/components/atoms/Button";
 import { clearCart } from "@/store/cartSlice";
-import formatCurrency from "@/utils/currency";
-
+import { formatCurrency } from "@/utils/currency";
 function Checkout() {
   const navigate = useNavigate();
   const { cart, clearCart: clearCartHook } = useCart();
@@ -1266,8 +1265,9 @@ paymentResult.transactionId = transactionId;
             </div>
           </div>
         )}
-        </div>
+</div>
 
+        <div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Order Summary */}
           <div className="order-2 lg:order-1">
