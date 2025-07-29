@@ -34,8 +34,10 @@ function Checkout() {
     instructions: ''
   });
   const [paymentProof, setPaymentProof] = useState(null);
+  const [paymentProofPreview, setPaymentProofPreview] = useState(null);
+  const [uploadLoading, setUploadLoading] = useState(false);
   const [transactionId, setTransactionId] = useState('');
-const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useState({});
 
   // Calculate totals with validated pricing and deals
   const calculateCartTotals = () => {
@@ -124,7 +126,7 @@ useEffect(() => {
 }
   }
 
-  function handleFileUpload(e) {
+function handleFileUpload(e) {
     const file = e.target.files[0];
     if (file) {
       // Validate file type
@@ -139,6 +141,8 @@ useEffect(() => {
         return;
       }
       
+      setUploadLoading(true);
+      
       // Clear any previous errors
       if (errors.paymentProof) {
         setErrors(prev => ({
@@ -147,14 +151,34 @@ useEffect(() => {
         }));
       }
       
-      setPaymentProof(file);
-      toast.success('Payment proof uploaded successfully');
+      // Create preview immediately
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setPaymentProofPreview(e.target.result);
+        setPaymentProof(file);
+        setUploadLoading(false);
+        toast.success('Payment proof uploaded successfully');
+      };
+      reader.onerror = () => {
+        setUploadLoading(false);
+        toast.error('Failed to process image. Please try again.');
+      };
+      reader.readAsDataURL(file);
     }
   }
 
   function removePaymentProof() {
     setPaymentProof(null);
-toast.info('Payment proof removed');
+    setPaymentProofPreview(null);
+    setUploadLoading(false);
+    toast.info('Payment proof removed');
+  }
+
+  function handleUploadRetry() {
+    const fileInput = document.getElementById('payment-proof-upload');
+    if (fileInput) {
+      fileInput.click();
+    }
   }
 
   function validateForm() {
@@ -794,7 +818,7 @@ value={formData.instructions}
                   </div>
                 )}
                 
-                {/* Payment Details for Non-Cash Methods */}
+{/* Payment Details for Non-Cash Methods */}
                 {paymentMethod !== 'cash' && (
                   <div className="mt-4 space-y-4">
                     {/* Transaction ID Input */}
@@ -813,66 +837,110 @@ value={formData.instructions}
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Upload Payment Proof *
                       </label>
-                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-primary transition-colors">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleFileUpload}
-                          className="hidden"
-                          id="payment-proof-upload"
-                        />
-                        <label
-                          htmlFor="payment-proof-upload"
-                          className="cursor-pointer flex flex-col items-center space-y-2"
-                        >
-                          <ApperIcon name="Upload" size={32} className="text-gray-400" />
-                          <div>
-                            <span className="text-primary font-medium">Click to upload</span>
-                            <span className="text-gray-500"> or drag and drop</span>
-                          </div>
-                          <span className="text-xs text-gray-400">PNG, JPG, WebP up to 5MB</span>
-                        </label>
-                      </div>
-                      {errors.paymentProof && (
-                        <p className="mt-1 text-sm text-red-600">{errors.paymentProof}</p>
-                      )}
-                    </div>
-                    
-                    {paymentProof && (
-                      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center space-x-3">
-                            <div className="flex-shrink-0">
-                              <ApperIcon name="FileImage" size={20} className="text-green-600" />
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-green-800">
-                                {paymentProof.name}
-                              </p>
-                              <p className="text-xs text-green-600">
-                                {(paymentProof.size / 1024 / 1024).toFixed(2)} MB
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={removePaymentProof}
-                            className="text-green-600 hover:text-green-800 transition-colors"
+                      
+                      {!paymentProof && !uploadLoading && (
+                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-primary transition-colors">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleFileUpload}
+                            className="hidden"
+                            id="payment-proof-upload"
+                          />
+                          <label
+                            htmlFor="payment-proof-upload"
+                            className="cursor-pointer flex flex-col items-center space-y-2"
                           >
-                            <ApperIcon name="X" size={16} />
-                          </button>
+                            <ApperIcon name="Upload" size={32} className="text-gray-400" />
+                            <div>
+                              <span className="text-primary font-medium">Click to upload</span>
+                              <span className="text-gray-500"> or drag and drop</span>
+                            </div>
+                            <span className="text-xs text-gray-400">PNG, JPG, WebP up to 5MB</span>
+                          </label>
                         </div>
-                        {paymentProof && (
+                      )}
+
+                      {uploadLoading && (
+                        <div className="border-2 border-dashed border-blue-300 bg-blue-50 rounded-lg p-6 text-center">
+                          <ApperIcon name="Loader2" size={32} className="text-blue-500 animate-spin mx-auto mb-2" />
+                          <p className="text-blue-700 font-medium">Processing image...</p>
+                          <p className="text-blue-600 text-sm">Please wait while we prepare your preview</p>
+                        </div>
+                      )}
+
+                      {errors.paymentProof && (
+                        <div className="mt-2 bg-red-50 border border-red-200 rounded-lg p-3">
+                          <div className="flex items-center space-x-2">
+                            <ApperIcon name="AlertCircle" size={16} className="text-red-500" />
+                            <p className="text-sm text-red-600">{errors.paymentProof}</p>
+                          </div>
+                          <div className="mt-2 flex space-x-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="small"
+                              onClick={handleUploadRetry}
+                              className="text-red-600 border-red-300 hover:bg-red-50"
+                            >
+                              <ApperIcon name="RefreshCw" size={14} className="mr-1" />
+                              Retry Upload
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="small"
+                              onClick={() => toast.info('Contact support at +92-300-SUPPORT for assistance')}
+                              className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                            >
+                              <ApperIcon name="MessageCircle" size={14} className="mr-1" />
+                              Contact Support
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {paymentProof && paymentProofPreview && (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex items-center space-x-3">
+                              <div className="flex-shrink-0">
+                                <ApperIcon name="CheckCircle" size={20} className="text-green-600" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-green-800">
+                                  Payment Proof Uploaded
+                                </p>
+                                <p className="text-xs text-green-600">
+                                  {paymentProof.name} • {(paymentProof.size / 1024 / 1024).toFixed(2)} MB
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={removePaymentProof}
+                              className="text-green-600 hover:text-green-800 transition-colors p-1 hover:bg-green-100 rounded"
+                            >
+                              <ApperIcon name="X" size={16} />
+                            </button>
+                          </div>
+                          
                           <div className="mt-3">
                             <img
-                              src={URL.createObjectURL(paymentProof)}
+                              src={paymentProofPreview}
                               alt="Payment proof preview"
-                              className="max-w-full h-32 object-cover rounded-lg border border-green-200"
+                              className="max-w-full h-40 object-cover rounded-lg border border-green-200 shadow-sm"
+                              onError={() => toast.error('Failed to display image preview')}
                             />
                           </div>
-                        )}
-                      </div>
-                    )}
+                          
+                          <div className="mt-3 flex items-center space-x-2 text-xs text-green-700 bg-green-100 rounded-lg p-2">
+                            <ApperIcon name="Info" size={14} />
+                            <span>Image ready for submission. You can now place your order.</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                     
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                       <div className="flex items-start space-x-3">
@@ -895,10 +963,10 @@ value={formData.instructions}
 
               {/* Submit Button */}
               <div className="card p-6">
-                <Button
+<Button
                   type="submit"
-                  disabled={loading}
-className="w-full"
+                  disabled={loading || uploadLoading || (paymentMethod !== 'cash' && !paymentProof)}
+                  className="w-full"
                 >
                   {loading ? 'Processing...' : `Place Order - Rs. ${total.toLocaleString()}`}
                 </Button>

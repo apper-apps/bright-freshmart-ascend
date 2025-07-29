@@ -467,11 +467,11 @@ async getPendingVerifications() {
                                      (order.paymentMethod === 'jazzcash' || order.paymentMethod === 'easypaisa' || order.paymentMethod === 'bank'));
         return hasPaymentProof && isPendingVerification;
       })
-.map(order => ({
+      .map(order => ({
         Id: order?.id,
         orderId: order?.id,
         transactionId: order?.transactionId || `TXN${order?.id}${Date.now().toString().slice(-4)}`,
-customerName: order?.deliveryAddress?.name || 'Unknown',
+        customerName: order?.deliveryAddress?.name || 'Unknown',
         amount: order?.total || order?.totalAmount || 0,
         paymentMethod: order?.paymentMethod || 'unknown',
         paymentProof: order?.paymentProof?.dataUrl || `/api/uploads/${order?.paymentProof?.fileName || order?.paymentProofFileName || 'default.jpg'}`,
@@ -479,18 +479,47 @@ customerName: order?.deliveryAddress?.name || 'Unknown',
         submittedAt: order?.paymentProof?.uploadedAt || order?.paymentProofSubmittedAt || order?.createdAt,
         verificationStatus: order?.verificationStatus || 'pending',
         // Enhanced Payment Flow Status Tracking
-        flowStage: order?.paymentFlowStage || 'vendor_processed',
+        flowStage: order?.paymentFlowStage || 'awaiting_verification',
         vendorProcessed: order?.vendorProcessed || false,
         adminConfirmed: order?.adminConfirmed || false,
         proofStatus: order?.proofStatus || 'pending',
         amountMatched: order?.amountMatched || false,
         vendorConfirmed: order?.vendorConfirmed || false,
         timestamp: order?.paymentTimestamp || order?.createdAt,
+        uploadedAt: order?.paymentProof?.uploadedAt || order?.createdAt,
         // Enhanced approval workflow fields
         approvalStatus: order?.approvalStatus || 'pending',
         approvalRequestId: order?.approvalRequestId || null,
-        priceApprovalRequired: order?.priceApprovalRequired || false
-}));
+        priceApprovalRequired: order?.priceApprovalRequired || false,
+        // Status display helpers
+        statusLabel: this.getVerificationStatusLabel(order?.verificationStatus || 'pending'),
+        statusColor: this.getVerificationStatusColor(order?.verificationStatus || 'pending'),
+        canProcess: this.canProcessPaymentVerification(order)
+      }));
+  }
+
+  getVerificationStatusLabel(status) {
+    const statusMap = {
+      'pending': 'Pending Verification',
+      'verified': 'Verified',
+      'rejected': 'Rejected',
+      'processing': 'Processing'
+    };
+    return statusMap[status] || 'Pending';
+  }
+
+  getVerificationStatusColor(status) {
+    const colorMap = {
+      'pending': 'yellow',
+      'verified': 'green', 
+      'rejected': 'red',
+      'processing': 'blue'
+    };
+    return colorMap[status] || 'yellow';
+  }
+
+  canProcessPaymentVerification(order) {
+    return order.verificationStatus === 'pending' || !order.verificationStatus;
   }
 
 async updateVerificationStatus(orderId, status, notes = '') {
@@ -514,17 +543,20 @@ async updateVerificationStatus(orderId, status, notes = '') {
       verifiedAt: new Date().toISOString(),
       verifiedBy: 'admin',
       paymentStatus: status === 'verified' ? 'completed' : 'verification_failed',
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      paymentFlowStage: status === 'verified' ? 'verified' : 'rejected'
     };
 
-// Update order status based on verification result - aligned with delivery tracking
+    // Update order status based on verification result - aligned with delivery tracking
     if (status === 'verified') {
       // When payment is verified by admin, set to pending first, then confirmed
       updatedOrder.status = 'pending'; // Order Placed
       updatedOrder.paymentVerifiedAt = new Date().toISOString();
       updatedOrder.approvalStatus = 'approved'; // Update approval status
+      updatedOrder.adminConfirmed = true;
+      updatedOrder.proofStatus = 'verified';
       
-// Immediately update to confirmed status
+      // Immediately update to confirmed status
       setTimeout(async () => {
         try {
           await this.update(orderId, { status: 'confirmed' });
@@ -532,14 +564,31 @@ async updateVerificationStatus(orderId, status, notes = '') {
           console.error('Failed to update order to confirmed:', error);
         }
       }, 100);
-    } else {
+    } else if (status === 'rejected') {
       updatedOrder.status = 'payment_rejected';
       updatedOrder.paymentRejectedAt = new Date().toISOString();
       updatedOrder.approvalStatus = 'rejected'; // Update approval status
+      updatedOrder.proofStatus = 'rejected';
     }
 
     this.orders[orderIndex] = updatedOrder;
     return { ...updatedOrder };
+  }
+
+  // Auto-refresh functionality for vendor portal
+  async getNewOrdersCount(lastCheckTime) {
+    await this.delay();
+    const newOrders = this.orders.filter(order => 
+      new Date(order.createdAt) > new Date(lastCheckTime) &&
+      (order.status === 'payment_pending' || order.verificationStatus === 'pending')
+    );
+    return newOrders.length;
+  }
+
+  async refreshVendorOrders(vendorId) {
+    await this.delay();
+    // Simulate real-time data refresh
+    return this.getVendorOrders(vendorId);
   }
 
   async getVerificationHistory(orderId) {

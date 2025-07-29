@@ -12,7 +12,6 @@ import { orderService } from "@/services/api/orderService";
 import { vendorService } from "@/services/api/vendorService";
 import { productService } from "@/services/api/productService";
 import { productUnitService } from "@/services/api/productUnitService";
-
 const VendorPortal = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [vendor, setVendor] = useState(null);
@@ -290,6 +289,7 @@ const tabs = [
     { id: 'products', label: 'My Products', icon: 'Package' },
     { id: 'availability', label: 'Availability Confirmation', icon: 'CheckCircle', priority: 'critical' },
     { id: 'packing', label: 'Packing Station', icon: 'Package2', priority: 'critical' },
+    { id: 'payment_verification', label: 'Payment Verification', icon: 'Receipt', priority: 'critical' },
     { id: 'fulfillment', label: 'Payment Flow', icon: 'CreditCard', priority: 'critical' },
     { id: 'orders', label: 'Order History', icon: 'ClipboardList' },
     { id: 'profile', label: 'Profile', icon: 'User' }
@@ -405,7 +405,7 @@ const tabs = [
                 </button>
               ))}
             </nav>
-          </div>
+</div>
 
           <div className="p-6">
             {loading ? (
@@ -413,7 +413,7 @@ const tabs = [
             ) : error ? (
               <Error message={error} />
             ) : (
-<>
+              <>
                 {activeTab === 'products' && (
                   <VendorProductsTab 
                     products={products}
@@ -426,8 +426,13 @@ const tabs = [
                     vendor={vendor}
                   />
                 )}
-{activeTab === 'packing' && (
+                {activeTab === 'packing' && (
                   <VendorPackingTab 
+                    vendor={vendor}
+                  />
+                )}
+                {activeTab === 'payment_verification' && (
+                  <VendorPaymentVerificationTab 
                     vendor={vendor}
                   />
                 )}
@@ -2599,6 +2604,259 @@ const VendorFulfillmentTab = ({ vendor }) => {
 };
 
 // Signature Capture Modal Component
+// Payment Verification Tab Component
+function VendorPaymentVerificationTab({ vendor }) {
+  const [pendingVerifications, setPendingVerifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState(Date.now());
+  const [autoRefresh, setAutoRefresh] = useState(false);
+
+  useEffect(() => {
+    loadPendingVerifications();
+  }, []);
+
+  useEffect(() => {
+    let interval;
+    if (autoRefresh) {
+      interval = setInterval(() => {
+        handleAutoRefresh();
+      }, 30000); // Auto-refresh every 30 seconds
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [autoRefresh]);
+
+  async function loadPendingVerifications() {
+    try {
+      setLoading(true);
+      const verifications = await orderService.getPendingVerifications();
+      setPendingVerifications(verifications);
+    } catch (error) {
+      toast.error('Failed to load payment verifications');
+      setPendingVerifications([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleAutoRefresh() {
+    try {
+      setRefreshing(true);
+      const verifications = await orderService.getPendingVerifications();
+      const newCount = await orderService.getNewOrdersCount(lastRefresh);
+      
+      if (newCount > 0) {
+        toast.success(`${newCount} new payment${newCount > 1 ? 's' : ''} to verify!`);
+      }
+      
+      setPendingVerifications(verifications);
+      setLastRefresh(Date.now());
+    } catch (error) {
+      toast.error('Auto-refresh failed');
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  async function handleManualRefresh() {
+    await handleAutoRefresh();
+    toast.info('Payment verifications refreshed');
+  }
+
+  async function handleVerificationUpdate(orderId, status, notes = '') {
+    try {
+      await orderService.updateVerificationStatus(orderId, status, notes);
+      toast.success(`Payment ${status === 'verified' ? 'approved' : 'rejected'} successfully`);
+      await loadPendingVerifications();
+    } catch (error) {
+      toast.error(`Failed to ${status === 'verified' ? 'approve' : 'reject'} payment`);
+    }
+  }
+
+  if (loading) {
+    return <Loading type="component" />;
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header with Auto-Refresh Controls */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900">Payment Verification</h2>
+          <p className="text-gray-600 text-sm">
+            Review and verify payment proofs from customers
+          </p>
+        </div>
+        
+        <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2">
+            <input
+              id="auto-refresh"
+              type="checkbox"
+              checked={autoRefresh}
+              onChange={(e) => setAutoRefresh(e.target.checked)}
+              className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+            />
+            <label htmlFor="auto-refresh" className="text-sm text-gray-700">
+              Auto-refresh
+            </label>
+          </div>
+          
+          <Button
+            onClick={handleManualRefresh}
+            disabled={refreshing}
+            variant="outline"
+            size="small"
+            className="flex items-center space-x-2"
+          >
+            <ApperIcon 
+              name="RefreshCw" 
+              size={16} 
+              className={refreshing ? 'animate-spin' : ''} 
+            />
+            <span>Refresh</span>
+          </Button>
+        </div>
+      </div>
+
+      {/* Stats Summary */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="flex items-center">
+            <ApperIcon name="Clock" size={20} className="text-yellow-600 mr-3" />
+            <div>
+              <p className="text-sm font-medium text-yellow-800">Pending</p>
+              <p className="text-2xl font-bold text-yellow-900">
+                {pendingVerifications.filter(v => v.verificationStatus === 'pending').length}
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <div className="flex items-center">
+            <ApperIcon name="CheckCircle" size={20} className="text-green-600 mr-3" />
+            <div>
+              <p className="text-sm font-medium text-green-800">Verified Today</p>
+              <p className="text-2xl font-bold text-green-900">
+                {pendingVerifications.filter(v => v.verificationStatus === 'verified').length}
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center">
+            <ApperIcon name="DollarSign" size={20} className="text-blue-600 mr-3" />
+            <div>
+              <p className="text-sm font-medium text-blue-800">Total Amount</p>
+              <p className="text-2xl font-bold text-blue-900">
+                {formatCurrency(pendingVerifications.reduce((sum, v) => sum + v.amount, 0))}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Pending Verifications List */}
+      <div className="bg-white rounded-lg border border-gray-200">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-medium text-gray-900">
+            Pending Payment Verifications ({pendingVerifications.length})
+          </h3>
+        </div>
+        
+        <div className="divide-y divide-gray-200">
+          {pendingVerifications.length === 0 ? (
+            <div className="p-8 text-center">
+              <ApperIcon name="CheckCircle" size={48} className="text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500 text-lg">No pending payment verifications</p>
+              <p className="text-gray-400 text-sm">All payments have been processed</p>
+            </div>
+          ) : (
+            pendingVerifications.map((verification) => (
+              <div key={verification.orderId} className="p-6">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-3 mb-2">
+                      <h4 className="text-lg font-medium text-gray-900">
+                        Order #{verification.orderId}
+                      </h4>
+                      <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
+                        verification.statusColor === 'yellow' ? 'bg-yellow-100 text-yellow-800' :
+                        verification.statusColor === 'green' ? 'bg-green-100 text-green-800' :
+                        verification.statusColor === 'red' ? 'bg-red-100 text-red-800' :
+                        'bg-blue-100 text-blue-800'
+                      }`}>
+                        {verification.statusLabel}
+                      </span>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <p className="text-gray-500">Customer</p>
+                        <p className="font-medium text-gray-900">{verification.customerName}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Amount</p>
+                        <p className="font-medium text-gray-900">{formatCurrency(verification.amount)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Payment Method</p>
+                        <p className="font-medium text-gray-900 capitalize">{verification.paymentMethod}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Transaction ID</p>
+                        <p className="font-medium text-gray-900">{verification.transactionId}</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
+                    {verification.paymentProof && (
+                      <div className="flex-shrink-0">
+                        <img
+                          src={verification.paymentProof}
+                          alt="Payment proof"
+                          className="w-20 h-20 object-cover rounded-lg border border-gray-200"
+                        />
+                      </div>
+                    )}
+                    
+                    {verification.canProcess && (
+                      <div className="flex space-x-2">
+                        <Button
+                          onClick={() => handleVerificationUpdate(verification.orderId, 'rejected')}
+                          variant="outline"
+                          size="small"
+                          className="text-red-600 border-red-300 hover:bg-red-50"
+                        >
+                          <ApperIcon name="X" size={16} className="mr-1" />
+                          Reject
+                        </Button>
+                        <Button
+                          onClick={() => handleVerificationUpdate(verification.orderId, 'verified')}
+                          variant="primary"
+                          size="small"
+                        >
+                          <ApperIcon name="Check" size={16} className="mr-1" />
+                          Verify
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const SignatureModal = ({ order, onSignatureComplete, onClose }) => {
   const canvasRef = React.useRef(null);
   const [isDrawing, setIsDrawing] = React.useState(false);
