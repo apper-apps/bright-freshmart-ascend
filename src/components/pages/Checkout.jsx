@@ -555,10 +555,10 @@ I will send the payment screenshot in the next message. Please help me complete 
       if (!transactionId.trim()) {
         newErrors.transactionId = 'Transaction ID is required';
       }
-      if (!paymentProof) {
+if (!paymentProof) {
         newErrors.paymentProof = 'Payment proof is required';
       }
-}
+    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -1162,9 +1162,8 @@ paymentResult.transactionId = transactionId;
                         </div>
                       </div>
                     ))}
-                  </div>
-)}
-                
+</div>
+                )}
                 {/* Payment Details for Non-Cash Methods */}
                 {paymentMethod !== 'cash' && (
                   <div className="mt-4 space-y-4">

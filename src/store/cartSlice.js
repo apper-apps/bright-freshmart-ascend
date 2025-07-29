@@ -3,7 +3,7 @@ import { toast } from "react-toastify";
 import React from "react";
 import { productService } from "@/services/api/productService";
 import Error from "@/components/ui/Error";
-import { calculateTotals } from "@/utils/currency";
+import { calculateTotals as calculateCartTotals } from "@/utils/currency";
 
 const initialState = {
   items: [],
