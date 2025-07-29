@@ -13,8 +13,8 @@ import ChatWidget from "@/components/molecules/ChatWidget";
 import Loading from "@/components/ui/Loading";
 import Error from "@/components/ui/Error";
 import Account from "@/components/pages/Account";
-import Input from "@/components/atoms/Input";
-import Button from "@/components/atoms/Button";
+import { Input } from "@/components/atoms/Input";
+import { Button } from "@/components/atoms/Button";
 import { clearCart } from "@/store/cartSlice";
 import { formatCurrency } from "@/utils/currency";
 function Checkout() {
@@ -1504,11 +1504,12 @@ paymentResult.transactionId = transactionId;
                                       <p className="text-xs text-blue-700">{method.instructions}</p>
                                     </div>
                                   )}
-                                </div>
+</div>
                               </div>
-)}
+                            )}
                           </div>
                         </div>
+                      </div>
                       </div>
                     ))}
                   </div>
