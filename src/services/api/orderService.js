@@ -590,14 +590,30 @@ async updateVerificationStatus(orderId, status, notes = '') {
     return { ...updatedOrder };
   }
 
-  // Auto-refresh functionality for vendor portal
+// Enhanced auto-refresh functionality for order tracking
   async getNewOrdersCount(lastCheckTime) {
     await this.delay();
     const newOrders = this.orders.filter(order => 
       new Date(order.createdAt) > new Date(lastCheckTime) &&
-      (order.status === 'payment_pending' || order.verificationStatus === 'pending')
+      (order.status === 'payment_pending' || order.verificationStatus === 'pending' || order.status === 'confirmed')
     );
     return newOrders.length;
+  }
+
+  // Check for order updates since last refresh
+  async checkOrderUpdates(orderId, lastRefreshTime) {
+    await this.delay();
+    const order = await this.getById(parseInt(orderId));
+    if (!order) return { hasUpdates: false };
+
+    const orderUpdatedAt = new Date(order.updatedAt);
+    const lastRefresh = new Date(lastRefreshTime);
+
+    return {
+      hasUpdates: orderUpdatedAt > lastRefresh,
+      order: orderUpdatedAt > lastRefresh ? order : null,
+      lastStatusChange: order.statusHistory?.[order.statusHistory.length - 1]?.timestamp || order.createdAt
+    };
   }
 
   async refreshVendorOrders(vendorId) {
