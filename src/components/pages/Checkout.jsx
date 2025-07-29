@@ -16,10 +16,9 @@ import {
   Shield,
   Clock
 } from 'lucide-react';
-
 import { Button } from '@/components/atoms/Button';
 import { Input } from '@/components/atoms/Input';
-import { PaymentMethod } from '@/components/molecules/PaymentMethod';
+import PaymentMethod from '@/components/molecules/PaymentMethod';
 import { ChatWidget } from '@/components/molecules/ChatWidget';
 import { clearCart } from '@/store/cartSlice';
 import { orderService } from '@/services/api/orderService';
