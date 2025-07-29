@@ -12,10 +12,10 @@ import PaymentMethod from "@/components/molecules/PaymentMethod";
 import Loading from "@/components/ui/Loading";
 import Error from "@/components/ui/Error";
 import Account from "@/components/pages/Account";
-import Input, { Input } from "@/components/atoms/Input";
-import Button, { Button } from "@/components/atoms/Button";
+import Input from "@/components/atoms/Input";
+import Button from "@/components/atoms/Button";
 import { clearCart } from "@/store/cartSlice";
-import formatCurrency, { formatCurrency } from "@/utils/currency";
+import { formatCurrency } from "@/utils/currency";
 
 function Checkout() {
   const navigate = useNavigate();
