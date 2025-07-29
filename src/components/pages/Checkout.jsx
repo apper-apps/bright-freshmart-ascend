@@ -12,10 +12,10 @@ import PaymentMethod from "@/components/molecules/PaymentMethod";
 import Loading from "@/components/ui/Loading";
 import Error from "@/components/ui/Error";
 import Account from "@/components/pages/Account";
-import Input from "@/components/atoms/Input";
-import Button from "@/components/atoms/Button";
+import Input, { Input } from "@/components/atoms/Input";
+import Button, { Button } from "@/components/atoms/Button";
 import { clearCart } from "@/store/cartSlice";
-import { formatCurrency } from "@/utils/currency";
+import formatCurrency, { formatCurrency } from "@/utils/currency";
 
 function Checkout() {
   const navigate = useNavigate();
@@ -1146,10 +1146,10 @@ paymentResult.transactionId = transactionId;
                                         }}
                                         className="text-blue-600 hover:text-blue-800 transition-colors"
                                       >
-                                        <ApperIcon name="Copy" size={14} />
+<ApperIcon name="Copy" size={14} />
                                       </button>
                                     </div>
-)}
+                                  </div>
                                   {method.instructions && (
                                     <div className="pt-2 border-t border-blue-200">
                                       <p className="text-xs text-blue-700">{method.instructions}</p>
