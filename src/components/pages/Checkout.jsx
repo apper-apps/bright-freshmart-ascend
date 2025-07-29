@@ -1,22 +1,22 @@
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { CreditCard, Mail, MapPin, Phone, User } from 'lucide-react'
-  import { useCart } from '@/hooks/useCart'
-  import { toast } from 'react-toastify'
-  import { formatCurrency } from '@/utils/currency'
-  import { clearCart } from '@/store/cartSlice'
-import ApperIcon from "@/components/ApperIcon";
-import { Button } from "@/components/atoms/Button";
-import { Input } from "@/components/atoms/Input";
-import Error from "@/components/ui/Error";
-import Loading from "@/components/ui/Loading";
-import Account from "@/components/pages/Account";
-import PaymentMethod from "@/components/molecules/PaymentMethod";
+import { CreditCard, Mail, MapPin, Phone, User } from "lucide-react";
+import { useCart } from "@/hooks/useCart";
+import { toast } from "react-toastify";
 import { orderService } from "@/services/api/orderService";
-import { productService } from "@/services/api/productService";
 import { paymentService } from "@/services/api/paymentService";
-
+import { productService } from "@/services/api/productService";
+import ApperIcon from "@/components/ApperIcon";
+import PaymentMethod from "@/components/molecules/PaymentMethod";
+import Loading from "@/components/ui/Loading";
+import Error from "@/components/ui/Error";
+import Account from "@/components/pages/Account";
+import Input from "@/components/atoms/Input";
+import Button from "@/components/atoms/Button";
+import { clearCart } from "@/store/cartSlice";
+import formatCurrency from "@/utils/currency";
+function Checkout() {
 function Checkout() {
   const navigate = useNavigate();
   const { cart, clearCart: clearCartHook } = useCart();
@@ -36,8 +36,10 @@ function Checkout() {
   const [paymentProof, setPaymentProof] = useState(null);
   const [paymentProofPreview, setPaymentProofPreview] = useState(null);
   const [uploadLoading, setUploadLoading] = useState(false);
-  const [transactionId, setTransactionId] = useState('');
+const [transactionId, setTransactionId] = useState('');
   const [errors, setErrors] = useState({});
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isCompressing, setIsCompressing] = useState(false);
 
   // Calculate totals with validated pricing and deals
   const calculateCartTotals = () => {
@@ -126,22 +128,69 @@ useEffect(() => {
 }
   }
 
-function handleFileUpload(e) {
-    const file = e.target.files[0];
-    if (file) {
-      // Validate file type
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
-      if (!allowedTypes.includes(file.type)) {
-        toast.error('Please upload a valid image file (JPEG, PNG, WebP)');
-        return;
-      }
-      // Validate file size (5MB max)
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error('File size should be less than 5MB');
-        return;
-      }
+// Helper function to compress image
+  async function compressImage(file, maxSizeMB = 3) {
+    return new Promise((resolve, reject) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
       
+      img.onload = () => {
+        // Calculate new dimensions
+        let { width, height } = img;
+        const maxDimension = 1920; // Max width or height
+        
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = (height * maxDimension) / width;
+            width = maxDimension;
+          } else {
+            width = (width * maxDimension) / height;
+            height = maxDimension;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        // Draw and compress
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Try different quality levels until under maxSizeMB
+        let quality = 0.8;
+        const tryCompress = () => {
+          canvas.toBlob((blob) => {
+            if (blob.size <= maxSizeMB * 1024 * 1024 || quality <= 0.1) {
+              // Create new file with compressed data
+              const compressedFile = new File([blob], file.name, {
+                type: file.type,
+                lastModified: Date.now()
+              });
+              resolve(compressedFile);
+            } else {
+              quality -= 0.1;
+              tryCompress();
+            }
+          }, file.type, quality);
+        };
+        
+        tryCompress();
+      };
+      
+      img.onerror = () => reject(new Error('Failed to load image for compression'));
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
+  async function handleFileUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    try {
+      // Reset states
       setUploadLoading(true);
+      setUploadProgress(0);
+      setIsCompressing(false);
       
       // Clear any previous errors
       if (errors.paymentProof) {
@@ -150,20 +199,96 @@ function handleFileUpload(e) {
           paymentProof: ''
         }));
       }
+
+      // Validate file type with better detection
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+      const fileType = file.type.toLowerCase();
       
-      // Create preview immediately
+      // Check for HEIC files which browsers don't handle well
+      if (file.name.toLowerCase().includes('.heic') || file.name.toLowerCase().includes('.heif')) {
+        toast.error('HEIC format not supported. Please convert to JPG or PNG first.');
+        setUploadLoading(false);
+        return;
+      }
+      
+      if (!allowedTypes.includes(fileType)) {
+        toast.error('Please upload a JPG, PNG, or WebP image file');
+        setUploadLoading(false);
+        return;
+      }
+
+      setUploadProgress(20);
+
+      // Check file size and compress if needed
+      let processedFile = file;
+      if (file.size > 3 * 1024 * 1024) { // 3MB threshold for compression
+        if (file.size > 10 * 1024 * 1024) { // 10MB absolute limit
+          toast.error('File is too large. Maximum size is 10MB.');
+          setUploadLoading(false);
+          return;
+        }
+        
+        setIsCompressing(true);
+        toast.info('Large file detected. Compressing image...');
+        setUploadProgress(40);
+        
+        try {
+          processedFile = await compressImage(file);
+          toast.success(`Image compressed from ${(file.size / 1024 / 1024).toFixed(1)}MB to ${(processedFile.size / 1024 / 1024).toFixed(1)}MB`);
+        } catch (compressionError) {
+          console.warn('Compression failed, using original file:', compressionError);
+          toast.warn('Could not compress image, using original file');
+          processedFile = file;
+        }
+        
+        setIsCompressing(false);
+      }
+
+      // Final size check
+      if (processedFile.size > 5 * 1024 * 1024) {
+        toast.error('File size must be under 5MB. Please resize your image.');
+        setUploadLoading(false);
+        return;
+      }
+
+      setUploadProgress(70);
+
+      // Create preview
       const reader = new FileReader();
       reader.onload = (e) => {
+        setUploadProgress(100);
         setPaymentProofPreview(e.target.result);
-        setPaymentProof(file);
+        setPaymentProof(processedFile);
         setUploadLoading(false);
-        toast.success('Payment proof uploaded successfully');
+        
+        const savings = file.size !== processedFile.size 
+          ? ` (compressed from ${(file.size / 1024 / 1024).toFixed(1)}MB)`
+          : '';
+        toast.success(`Payment proof uploaded successfully${savings}`);
       };
+      
       reader.onerror = () => {
         setUploadLoading(false);
-        toast.error('Failed to process image. Please try again.');
+        setUploadProgress(0);
+        toast.error('Failed to process image. Please try a different file.');
       };
-      reader.readAsDataURL(file);
+      
+      reader.readAsDataURL(processedFile);
+      
+    } catch (error) {
+      console.error('Upload error:', error);
+      setUploadLoading(false);
+      setUploadProgress(0);
+      setIsCompressing(false);
+      
+      // Enhanced error messages
+      if (error.message.includes('network') || error.message.includes('fetch')) {
+        toast.error('Network error. Please check your connection and try again.');
+      } else if (error.message.includes('compression')) {
+        toast.error('Image processing failed. Please try a different image.');
+      } else {
+        toast.error('Upload failed. Please try again or contact support.');
+      }
     }
   }
 
@@ -171,12 +296,21 @@ function handleFileUpload(e) {
     setPaymentProof(null);
     setPaymentProofPreview(null);
     setUploadLoading(false);
+    setUploadProgress(0);
+    setIsCompressing(false);
     toast.info('Payment proof removed');
   }
 
   function handleUploadRetry() {
+    // Reset upload states
+    setUploadLoading(false);
+    setUploadProgress(0);
+    setIsCompressing(false);
+    
+    // Clear the current file input and trigger new selection
     const fileInput = document.getElementById('payment-proof-upload');
     if (fileInput) {
+      fileInput.value = '';
       fileInput.click();
     }
   }
@@ -861,16 +995,37 @@ value={formData.instructions}
                         </div>
                       )}
 
-                      {uploadLoading && (
+{uploadLoading && (
                         <div className="border-2 border-dashed border-blue-300 bg-blue-50 rounded-lg p-6 text-center">
-                          <ApperIcon name="Loader2" size={32} className="text-blue-500 animate-spin mx-auto mb-2" />
-                          <p className="text-blue-700 font-medium">Processing image...</p>
-                          <p className="text-blue-600 text-sm">Please wait while we prepare your preview</p>
+                          <div className="space-y-3">
+                            {isCompressing ? (
+                              <>
+                                <ApperIcon name="Zap" size={32} className="text-amber-500 animate-pulse mx-auto mb-2" />
+                                <p className="text-amber-700 font-medium">Compressing large image...</p>
+                                <p className="text-amber-600 text-sm">Optimizing file size for faster upload</p>
+                              </>
+                            ) : (
+                              <>
+                                <ApperIcon name="Loader2" size={32} className="text-blue-500 animate-spin mx-auto mb-2" />
+                                <p className="text-blue-700 font-medium">Processing image...</p>
+                                <p className="text-blue-600 text-sm">Please wait while we prepare your preview</p>
+                              </>
+                            )}
+                            
+                            {uploadProgress > 0 && (
+                              <div className="w-full bg-blue-200 rounded-full h-2 mt-3">
+                                <div 
+                                  className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                                  style={{ width: `${uploadProgress}%` }}
+                                ></div>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
 
                       {errors.paymentProof && (
-                        <div className="mt-2 bg-red-50 border border-red-200 rounded-lg p-3">
+                        <div className="mt-2 bg-red-50 border border-red-200 rounded-lg p-3 upload-error-animate">
                           <div className="flex items-center space-x-2">
                             <ApperIcon name="AlertCircle" size={16} className="text-red-500" />
                             <p className="text-sm text-red-600">{errors.paymentProof}</p>

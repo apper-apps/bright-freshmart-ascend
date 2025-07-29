@@ -712,3 +712,177 @@
     border-color: rgb(248 180 180);
   }
 }
+
+/* Enhanced Upload Error Animation */
+.upload-error-animate {
+  animation: error-shake 0.5s ease-in-out;
+}
+
+@keyframes error-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+/* Upload Progress Enhancement */
+.upload-progress-bar {
+  background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+  transition: width 0.3s ease-in-out;
+}
+
+/* Compression Animation */
+.compress-pulse {
+  animation: compress-pulse 2s infinite;
+}
+
+@keyframes compress-pulse {
+  0%, 100% { 
+    opacity: 1; 
+    transform: scale(1);
+  }
+  50% { 
+    opacity: 0.7; 
+    transform: scale(1.05);
+  }
+}
+
+/* Enhanced File Upload Zones */
+.upload-zone-enhanced {
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.upload-zone-enhanced:hover {
+  border-color: #4CAF50;
+  background-color: rgba(76, 175, 80, 0.05);
+}
+
+.upload-zone-enhanced.drag-over {
+  border-color: #2E7D32;
+  background-color: rgba(46, 125, 50, 0.1);
+  transform: scale(1.02);
+}
+
+/* File Type Error States */
+.file-error-unsupported {
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 50%, #fecaca 100%);
+  border-color: #dc2626;
+  animation: file-error-pulse 1s ease-in-out;
+}
+
+@keyframes file-error-pulse {
+  0%, 100% { 
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.3);
+  }
+  50% { 
+    box-shadow: 0 0 0 8px rgba(220, 38, 38, 0.1);
+  }
+}
+
+/* Success Upload States */
+.upload-success {
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 50%, #bbf7d0 100%);
+  border-color: #16a34a;
+  animation: success-bounce 0.6s ease-out;
+}
+
+@keyframes success-bounce {
+  0% { 
+    transform: scale(0.95); 
+    opacity: 0.8;
+  }
+  50% { 
+    transform: scale(1.05); 
+    opacity: 0.9;
+  }
+  100% { 
+    transform: scale(1); 
+    opacity: 1;
+  }
+}
+
+/* Image Preview Enhancements */
+.image-preview-container {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.image-preview-container:hover {
+  transform: scale(1.02);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+.image-preview-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.image-preview-container:hover .image-preview-overlay {
+  opacity: 1;
+}
+
+/* Enhanced Retry Button States */
+.retry-button-enhanced {
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.retry-button-enhanced:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(220, 38, 38, 0.2);
+}
+
+.retry-button-enhanced:active {
+  transform: translateY(0);
+}
+
+/* Network Error Specific Styling */
+.network-error-notification {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 50%, #facc15 100%);
+  border-left: 4px solid #f59e0b;
+  animation: network-warning 2s infinite;
+}
+
+@keyframes network-warning {
+  0%, 100% { 
+    box-shadow: 0 2px 4px rgba(245, 158, 11, 0.1);
+  }
+  50% { 
+    box-shadow: 0 4px 8px rgba(245, 158, 11, 0.2);
+  }
+}
+
+/* Mobile Upload Enhancements */
+@media (max-width: 640px) {
+  .upload-zone-enhanced {
+    padding: 1.5rem;
+    min-height: 120px;
+  }
+  
+  .upload-progress-bar {
+    height: 4px;
+  }
+  
+  .image-preview-container {
+    max-width: 100%;
+    height: 200px;
+  }
+  
+  .retry-button-enhanced {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

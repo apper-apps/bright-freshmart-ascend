@@ -68,7 +68,7 @@ constructor() {
 
   // Card Payment Processing
   async processCardPayment(cardData, amount, orderId) {
-    await this.delay(2000); // Simulate processing time
+await this.delay(3000); // Enhanced processing time for better upload handling
 
     // Validate card data
     const validation = this.validateCardData(cardData);
@@ -169,7 +169,7 @@ async processDigitalWalletPayment(walletType, amount, orderId, phone) {
 
   // Bank Transfer Processing
   async processBankTransfer(amount, orderId, bankDetails) {
-    await this.delay(1000);
+await this.delay(1500); // Enhanced processing time for image verification
 
     const transaction = {
       Id: this.getNextId(),
