@@ -170,15 +170,50 @@ addToCart: (state, action) => {
           unit: product.unit || 'piece'
         };
         state.items.push(cartItem);
-      }
+}
       
-      cartSlice.caseReducers.calculateTotals(state);
+      // Recalculate totals after adding item
+      const subtotal = state.items.reduce((total, item) => {
+        let effectivePrice = item.basePrice || item.price;
+        if (item.variationPrice && item.variationPrice > 0) {
+          effectivePrice = item.variationPrice;
+        }
+        if (item.seasonalDiscount && item.seasonalDiscountActive) {
+          if (item.seasonalDiscountType === 'Percentage') {
+            effectivePrice = effectivePrice * (1 - item.seasonalDiscount / 100);
+          } else {
+            effectivePrice = Math.max(0, effectivePrice - item.seasonalDiscount);
+          }
+        }
+        return total + (effectivePrice * item.quantity);
+      }, 0);
+      
+      state.total = subtotal;
+      state.itemCount = state.items.reduce((total, item) => total + item.quantity, 0);
     },
     
-    removeFromCart: (state, action) => {
+removeFromCart: (state, action) => {
       const productId = action.payload;
       state.items = state.items.filter(item => item.id !== productId);
-      cartSlice.caseReducers.calculateTotals(state);
+      
+      // Recalculate totals after removing item
+      const subtotal = state.items.reduce((total, item) => {
+        let effectivePrice = item.basePrice || item.price;
+        if (item.variationPrice && item.variationPrice > 0) {
+          effectivePrice = item.variationPrice;
+        }
+        if (item.seasonalDiscount && item.seasonalDiscountActive) {
+          if (item.seasonalDiscountType === 'Percentage') {
+            effectivePrice = effectivePrice * (1 - item.seasonalDiscount / 100);
+          } else {
+            effectivePrice = Math.max(0, effectivePrice - item.seasonalDiscount);
+          }
+        }
+        return total + (effectivePrice * item.quantity);
+      }, 0);
+      
+      state.total = subtotal;
+      state.itemCount = state.items.reduce((total, item) => total + item.quantity, 0);
     },
     
     updateQuantity: (state, action) => {
@@ -195,11 +230,29 @@ const { productId, quantity } = action.payload;
           item.updatedAt = Date.now();
           // Note: isUpdating flag should be managed at component level
           // to avoid async operations in reducers
-        }
+}
       }
       
-      cartSlice.caseReducers.calculateTotals(state);
+      // Recalculate totals after updating quantity
+      const subtotal = state.items.reduce((total, item) => {
+        let effectivePrice = item.basePrice || item.price;
+        if (item.variationPrice && item.variationPrice > 0) {
+          effectivePrice = item.variationPrice;
+        }
+        if (item.seasonalDiscount && item.seasonalDiscountActive) {
+          if (item.seasonalDiscountType === 'Percentage') {
+            effectivePrice = effectivePrice * (1 - item.seasonalDiscount / 100);
+          } else {
+            effectivePrice = Math.max(0, effectivePrice - item.seasonalDiscount);
+          }
+        }
+        return total + (effectivePrice * item.quantity);
+      }, 0);
+      
+      state.total = subtotal;
+      state.itemCount = state.items.reduce((total, item) => total + item.quantity, 0);
     },
+    
     clearCart: (state) => {
       state.items = [];
       state.total = 0;
@@ -293,10 +346,81 @@ calculateTotals: (state) => {
         appliedDeals
       };
     },
-    
-    applyDeals: (state) => {
-      cartSlice.caseReducers.calculateDeals(state);
-      cartSlice.caseReducers.calculateTotals(state);
+applyDeals: (state) => {
+      // Calculate deals first
+      const appliedDeals = [];
+      let totalSavings = 0;
+      
+      state.items.forEach(item => {
+        if (!item.dealType || !item.dealValue) return;
+        
+        let itemSavings = 0;
+        
+        if (item.dealType === 'BOGO' && item.quantity >= 2) {
+          const freeItems = Math.floor(item.quantity / 2);
+          itemSavings = freeItems * item.price;
+          
+          appliedDeals.push({
+            id: `${item.id}-bogo`,
+            productId: item.id,
+            productName: item.name,
+            type: 'BOGO',
+            description: 'Buy 1 Get 1 Free',
+            freeItems,
+            savings: itemSavings,
+            appliedQuantity: item.quantity
+          });
+        } else if (item.dealType === 'Bundle' && item.dealValue && item.quantity >= 3) {
+          const [buyQty, payQty] = item.dealValue.split('for').map(x => parseInt(x.trim()));
+          if (buyQty && payQty && item.quantity >= buyQty) {
+            const bundleSets = Math.floor(item.quantity / buyQty);
+            const freeItems = bundleSets * (buyQty - payQty);
+            itemSavings = freeItems * item.price;
+            
+            appliedDeals.push({
+              id: `${item.id}-bundle`,
+              productId: item.id,
+              productName: item.name,
+              type: 'Bundle',
+              description: `${item.dealValue} Deal`,
+              freeItems,
+              savings: itemSavings,
+              appliedQuantity: item.quantity,
+              bundleSets
+            });
+          }
+        }
+        
+        totalSavings += itemSavings;
+      });
+      
+      state.dealsSummary = {
+        totalSavings,
+        appliedDeals
+      };
+      
+      // Then calculate totals
+      const subtotal = state.items.reduce((total, item) => {
+        let effectivePrice = item.basePrice || item.price;
+        if (item.variationPrice && item.variationPrice > 0) {
+          effectivePrice = item.variationPrice;
+        }
+        if (item.seasonalDiscount && item.seasonalDiscountActive) {
+          if (item.seasonalDiscountType === 'Percentage') {
+            effectivePrice = effectivePrice * (1 - item.seasonalDiscount / 100);
+          } else {
+            effectivePrice = Math.max(0, effectivePrice - item.seasonalDiscount);
+          }
+        }
+        
+        const itemTotal = effectivePrice * item.quantity;
+        const itemDeals = state.dealsSummary.appliedDeals.filter(deal => deal.productId === item.id);
+        const itemSavings = itemDeals.reduce((savings, deal) => savings + deal.savings, 0);
+        return total + itemTotal - itemSavings;
+      }, 0);
+      
+      state.total = subtotal;
+      state.itemCount = state.items.reduce((total, item) => total + item.quantity, 0);
     },
     
     updatePricesFromValidation: (state, action) => {
@@ -334,8 +458,25 @@ calculateTotals: (state) => {
         }
       });
       
-      if (hasChanges) {
-        cartSlice.caseReducers.calculateTotals(state);
+if (hasChanges) {
+        // Recalculate totals after validation updates
+        const subtotal = state.items.reduce((total, item) => {
+          let effectivePrice = item.basePrice || item.price;
+          if (item.variationPrice && item.variationPrice > 0) {
+            effectivePrice = item.variationPrice;
+          }
+          if (item.seasonalDiscount && item.seasonalDiscountActive) {
+            if (item.seasonalDiscountType === 'Percentage') {
+              effectivePrice = effectivePrice * (1 - item.seasonalDiscount / 100);
+            } else {
+              effectivePrice = Math.max(0, effectivePrice - item.seasonalDiscount);
+            }
+          }
+          return total + (effectivePrice * item.quantity);
+        }, 0);
+        
+        state.total = subtotal;
+        state.itemCount = state.items.reduce((total, item) => total + item.quantity, 0);
         state.lastValidated = Date.now();
       }
     },
@@ -372,9 +513,58 @@ setError: (state, action) => {
       .addCase(validateCartPrices.pending, (state) => {
         state.isLoading = true;
       })
-      .addCase(validateCartPrices.fulfilled, (state, action) => {
+.addCase(validateCartPrices.fulfilled, (state, action) => {
         state.isLoading = false;
-        cartSlice.caseReducers.updatePricesFromValidation(state, action);
+        const validationResults = action.payload;
+        let hasChanges = false;
+        
+        validationResults.forEach(result => {
+          if (result.unavailable) {
+            state.items = state.items.filter(item => item.id !== result.id);
+            hasChanges = true;
+            toast.error(`${result.name} is no longer available and was removed from cart`);
+          } else if (result.priceChanged || result.stockChanged) {
+            const item = state.items.find(item => item.id === result.id);
+            if (item) {
+              const oldPrice = item.price;
+              item.price = result.newPrice;
+              item.stock = result.newStock;
+              
+              if (item.quantity > result.newStock) {
+                item.quantity = Math.max(1, result.newStock);
+                toast.warning(`${result.name} quantity adjusted to ${item.quantity} due to stock availability`);
+              }
+              
+              if (result.priceChanged) {
+                const priceDirection = result.newPrice > oldPrice ? 'increased' : 'decreased';
+                toast.info(`${result.name} price ${priceDirection} from Rs. ${oldPrice.toLocaleString()} to Rs. ${result.newPrice.toLocaleString()}`);
+              }
+              
+              hasChanges = true;
+            }
+          }
+        });
+        
+        if (hasChanges) {
+          const subtotal = state.items.reduce((total, item) => {
+            let effectivePrice = item.basePrice || item.price;
+            if (item.variationPrice && item.variationPrice > 0) {
+              effectivePrice = item.variationPrice;
+            }
+            if (item.seasonalDiscount && item.seasonalDiscountActive) {
+              if (item.seasonalDiscountType === 'Percentage') {
+                effectivePrice = effectivePrice * (1 - item.seasonalDiscount / 100);
+              } else {
+                effectivePrice = Math.max(0, effectivePrice - item.seasonalDiscount);
+              }
+            }
+            return total + (effectivePrice * item.quantity);
+          }, 0);
+          
+          state.total = subtotal;
+          state.itemCount = state.items.reduce((total, item) => total + item.quantity, 0);
+          state.lastValidated = Date.now();
+        }
       })
       .addCase(validateCartPrices.rejected, (state, action) => {
         state.isLoading = false;
@@ -411,9 +601,26 @@ setError: (state, action) => {
             unit: product.unit || 'piece'
           };
           state.items.push(cartItem);
-        }
+}
         
-        cartSlice.caseReducers.calculateTotals(state);
+        // Recalculate totals after adding validated product
+        const subtotal = state.items.reduce((total, item) => {
+          let effectivePrice = item.basePrice || item.price;
+          if (item.variationPrice && item.variationPrice > 0) {
+            effectivePrice = item.variationPrice;
+          }
+          if (item.seasonalDiscount && item.seasonalDiscountActive) {
+            if (item.seasonalDiscountType === 'Percentage') {
+              effectivePrice = effectivePrice * (1 - item.seasonalDiscount / 100);
+            } else {
+              effectivePrice = Math.max(0, effectivePrice - item.seasonalDiscount);
+            }
+          }
+          return total + (effectivePrice * item.quantity);
+        }, 0);
+        
+        state.total = subtotal;
+        state.itemCount = state.items.reduce((total, item) => total + item.quantity, 0);
         toast.success(`${product.name} added to cart`);
       })
       .addCase(addToCartWithValidation.rejected, (state, action) => {
@@ -438,9 +645,26 @@ setError: (state, action) => {
             item.seasonalDiscountActive = currentProduct.seasonalDiscountActive;
             item.stock = currentProduct.stock;
           }
-        }
+}
         
-        cartSlice.caseReducers.calculateTotals(state);
+        // Recalculate totals after quantity update
+        const subtotal = state.items.reduce((total, item) => {
+          let effectivePrice = item.basePrice || item.price;
+          if (item.variationPrice && item.variationPrice > 0) {
+            effectivePrice = item.variationPrice;
+          }
+          if (item.seasonalDiscount && item.seasonalDiscountActive) {
+            if (item.seasonalDiscountType === 'Percentage') {
+              effectivePrice = effectivePrice * (1 - item.seasonalDiscount / 100);
+            } else {
+              effectivePrice = Math.max(0, effectivePrice - item.seasonalDiscount);
+            }
+          }
+          return total + (effectivePrice * item.quantity);
+        }, 0);
+        
+        state.total = subtotal;
+        state.itemCount = state.items.reduce((total, item) => total + item.quantity, 0);
       })
       .addCase(updateQuantityWithValidation.rejected, (state, action) => {
         toast.error(action.payload);

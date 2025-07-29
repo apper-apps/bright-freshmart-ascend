@@ -15,7 +15,7 @@ import Account from "@/components/pages/Account";
 import Input from "@/components/atoms/Input";
 import Button from "@/components/atoms/Button";
 import { clearCart } from "@/store/cartSlice";
-import formatCurrency from "@/utils/currency";
+import { formatCurrency } from "@/utils/currency";
 
 function Checkout() {
   const navigate = useNavigate();
@@ -593,17 +593,17 @@ I will send the payment screenshot in the next message. Please help me complete 
     }
   }
 
-  // Convert file to base64 for safe serialization
+// Convert file to base64 for safe serialization
   async function convertFileToBase64(file) {
     return new Promise((resolve, reject) => {
-reader.onload = () => resolve(reader.result);
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
   }
 
-  async function completeOrder(paymentResult) {
-    try {
+async function completeOrder(paymentResult) {
     try {
       let paymentProofData = null;
       
@@ -721,7 +721,7 @@ reader.onload = () => resolve(reader.result);
           amount: validatedTotal,
           processedAt: paymentResult.timestamp
         } : null
-};
+      };
 
       const order = await orderService.create(orderData);
       clearCartHook();
@@ -1057,7 +1057,6 @@ paymentResult.transactionId = transactionId;
                     />
                   </div>
                   <div>
-                    <Input
 <Input
                       label="Delivery Instructions"
                       name="instructions"
