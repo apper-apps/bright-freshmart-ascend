@@ -1,703 +1,888 @@
-import { useState, useEffect, useRef } from 'react';
-import { toast } from 'react-toastify';
-import ApperIcon from '@/components/ApperIcon';
-import { Button } from '@/components/atoms/Button';
-import { Input } from '@/components/atoms/Input';
-import { Badge } from '@/components/atoms/Badge';
-import Loading from '@/components/ui/Loading';
-import Error from '@/components/ui/Error';
-import { vendorService } from '@/services/api/vendorService';
-import { productService } from '@/services/api/productService';
-import { paymentService } from '@/services/api/paymentService';
-import ProductAssignment from '@/components/molecules/ProductAssignment';
+import React, { useEffect, useRef, useState } from "react";
+import { toast } from "react-toastify";
+import { paymentService } from "@/services/api/paymentService";
+import { productService } from "@/services/api/productService";
+import { vendorService } from "@/services/api/vendorService";
+import ApperIcon from "@/components/ApperIcon";
+import ProductAssignment from "@/components/molecules/ProductAssignment";
+import Loading from "@/components/ui/Loading";
+import Error from "@/components/ui/Error";
+import Badge from "@/components/atoms/Badge";
+import Input from "@/components/atoms/Input";
+import Button from "@/components/atoms/Button";
 
-const VendorManagement = () => {
-  const [vendors, setVendors] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [showForm, setShowForm] = useState(false);
-  const [editingVendor, setEditingVendor] = useState(null);
+// Enhanced error boundary for component stability
+function VendorManagement() {
+  // State management
+  const [vendors, setVendors] = useState([])
+  const [filteredVendors, setFilteredVendors] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [isEditing, setIsEditing] = useState(false)
+  const [editingVendor, setEditingVendor] = useState(null)
+  const [availableProducts, setAvailableProducts] = useState([])
+  const [productsLoading, setProductsLoading] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    password: '',
-    company: '',
     phone: '',
     address: '',
-    isActive: true
-  });
-  const [formLoading, setFormLoading] = useState(false);
-  const [availableProducts, setAvailableProducts] = useState([]);
-  const [productAssignments, setProductAssignments] = useState([]);
-  const [selectedProducts, setSelectedProducts] = useState([]);
+    category: '',
+    status: 'active'
+  })
 
-  // Payment queue states
-  const [paymentQueue, setPaymentQueue] = useState([]);
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [showViewModal, setShowViewModal] = useState(false);
-  const [showVerifyModal, setShowVerifyModal] = useState(false);
-  const [selectedPayment, setSelectedPayment] = useState(null);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [uploadLoading, setUploadLoading] = useState(false);
-  const [verifyLoading, setVerifyLoading] = useState(false);
-  const [verificationNotes, setVerificationNotes] = useState('');
-  const [isDragOver, setIsDragOver] = useState(false);
-  const fileInputRef = useRef(null);
-useEffect(() => {
-    loadVendors();
-    loadAvailableProducts();
-    loadPaymentQueue();
-  }, []);
+  // Payment proof management state
+  const [paymentQueue, setPaymentQueue] = useState([])
+  const [selectedPayment, setSelectedPayment] = useState(null)
+  const [uploadingProof, setUploadingProof] = useState(null)
+  const [proofFile, setProofFile] = useState(null)
+  const [isDragActive, setIsDragActive] = useState(false)
+  const [verificationNotes, setVerificationNotes] = useState('')
+  const fileInputRef = useRef(null)
 
-  const loadAvailableProducts = async () => {
+  // Load vendors on component mount with error handling
+  useEffect(() => {
+    loadVendors()
+    loadAvailableProducts()
+    loadPaymentQueue()
+  }, [])
+
+  // Filter vendors based on search and status with error handling
+  useEffect(() => {
     try {
-      const data = await productService.getAll('admin');
-      setAvailableProducts(data);
-    } catch (err) {
-      console.error('Failed to load products:', err);
+      const filtered = vendors.filter(vendor => {
+        if (!vendor) return false
+        
+        const matchesSearch = vendor.name?.toLowerCase()?.includes(searchTerm.toLowerCase()) ||
+                             vendor.email?.toLowerCase()?.includes(searchTerm.toLowerCase()) ||
+                             vendor.category?.toLowerCase()?.includes(searchTerm.toLowerCase())
+        
+        const matchesStatus = statusFilter === 'all' || vendor.status === statusFilter
+        
+        return matchesSearch && matchesStatus
+      })
+      setFilteredVendors(filtered)
+    } catch (error) {
+      console.error('Error filtering vendors:', error)
+      setFilteredVendors(vendors) // Fallback to show all vendors
     }
-  };
+  }, [vendors, searchTerm, statusFilter])
 
-  const loadVendors = async () => {
+  // Load available products with error handling
+  async function loadAvailableProducts() {
     try {
-      setLoading(true);
-      setError(null);
-      const data = await vendorService.getAll();
-      setVendors(data);
-    } catch (err) {
-      setError(err.message);
-      toast.error('Failed to load vendors');
+      setProductsLoading(true)
+      setError(null)
+      const data = await productService.getAllProducts()
+      setAvailableProducts(Array.isArray(data) ? data : [])
+    } catch (error) {
+      console.error('Error loading products:', error)
+      setError(error?.message || 'Failed to load products')
+      setAvailableProducts([])
+      toast.error('Failed to load products')
     } finally {
-      setLoading(false);
+      setProductsLoading(false)
     }
-  };
+  }
 
-  const handleSearch = (e) => {
-    setSearchTerm(e.target.value);
-  };
-
-  const handleStatusFilter = (status) => {
-    setStatusFilter(status);
-  };
-
-  const filteredVendors = vendors.filter(vendor => {
-    const matchesSearch = vendor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         vendor.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         vendor.company.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === 'all' || 
-                         (statusFilter === 'active' && vendor.isActive) ||
-                         (statusFilter === 'inactive' && !vendor.isActive);
-    
-    return matchesSearch && matchesStatus;
-  });
-
-const resetForm = () => {
-    setFormData({
-      name: '',
-      email: '',
-      password: '',
-      company: '',
-      phone: '',
-      address: '',
-      isActive: true
-    });
-    setEditingVendor(null);
-    setShowForm(false);
-    setProductAssignments([]);
-    setSelectedProducts([]);
-  };
-
-const handleEdit = async (vendor) => {
-    setEditingVendor(vendor);
-    setFormData({
-      name: vendor.name,
-      email: vendor.email,
-      password: '', // Don't pre-fill password
-      company: vendor.company || '',
-      phone: vendor.phone || '',
-      address: vendor.address || '',
-      isActive: vendor.isActive
-    });
-    
-    // Load existing product assignments for this vendor
+  // Load vendors with comprehensive error handling
+  async function loadVendors() {
     try {
-      const vendorProducts = await productService.getVendorProducts(vendor.Id);
-      const assignedProductIds = vendorProducts.map(p => p.id);
-      setSelectedProducts(assignedProductIds);
-    } catch (err) {
-      console.error('Failed to load vendor products:', err);
-    }
-    
-    setShowForm(true);
-  };
-
-const handleSubmit = async (e) => {
-    e.preventDefault();
-    setFormLoading(true);
-
-    try {
-      let vendorResult;
+      setLoading(true)
+      setError(null)
+      const data = await vendorService.getAllVendors()
       
-      if (editingVendor) {
-        // Update existing vendor
-        const updateData = { ...formData };
-        if (!updateData.password) {
-          delete updateData.password; // Don't update password if empty
-        }
-        vendorResult = await vendorService.update(editingVendor.Id, updateData);
-        
-        // Update product assignments if changed
-        if (selectedProducts.length > 0) {
-          await productService.assignProductsToVendor(editingVendor.Id, selectedProducts);
-        }
-        
-        toast.success('Vendor updated successfully');
-      } else {
-        // Create new vendor
-        vendorResult = await vendorService.create(formData);
-        
-        // Assign products to new vendor if any selected
-        if (selectedProducts.length > 0) {
-          await productService.assignProductsToVendor(vendorResult.Id, selectedProducts);
-        }
-        
-        toast.success('Vendor created successfully');
+      if (!Array.isArray(data)) {
+        throw new Error('Invalid vendor data received')
       }
       
-      resetForm();
-      loadVendors();
-    } catch (err) {
-      toast.error(err.message);
+      setVendors(data)
+      setFilteredVendors(data)
+    } catch (error) {
+      console.error('Error loading vendors:', error)
+      setError(error?.message || 'Failed to load vendors')
+      setVendors([])
+      setFilteredVendors([])
+      toast.error('Failed to load vendors')
     } finally {
-      setFormLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
-  const handleDelete = async (vendor) => {
-    if (!window.confirm(`Are you sure you want to delete ${vendor.name}?`)) {
-      return;
-    }
-
+  // Search handler with validation
+  function handleSearch(e) {
     try {
-      await vendorService.delete(vendor.Id);
-      toast.success('Vendor deleted successfully');
-      loadVendors();
-    } catch (err) {
-      toast.error(err.message);
+      const value = e?.target?.value || ''
+      setSearchTerm(value)
+    } catch (error) {
+      console.error('Error handling search:', error)
+      setSearchTerm('')
     }
-  };
+  }
 
-  const handleToggleStatus = async (vendor) => {
+  // Status filter handler with validation  
+  function handleStatusFilter(status) {
     try {
-      const newStatus = vendor.isActive ? 'inactive' : 'active';
-      await vendorService.toggleVendorStatus(vendor.Id, newStatus);
-      toast.success(`Vendor ${newStatus === 'active' ? 'activated' : 'deactivated'} successfully`);
-      loadVendors();
-    } catch (err) {
-      toast.error(err.message);
+      if (typeof status === 'string') {
+        setStatusFilter(status)
+      }
+    } catch (error) {
+      console.error('Error handling status filter:', error)
+      setStatusFilter('all')
     }
-  };
+  }
 
-  const handleFormChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
-};
-
-  // Payment queue functions
-  const loadPaymentQueue = async () => {
+  // Form reset with error handling
+  function resetForm() {
     try {
-      const proofQueue = await paymentService.getPaymentProofQueue();
-      setPaymentQueue(proofQueue);
-    } catch (err) {
-      console.error('Failed to load payment queue:', err);
-      toast.error('Failed to load payment queue');
+      setFormData({
+        name: '',
+        email: '',
+        phone: '',
+        address: '',
+        category: '',
+        status: 'active'
+      })
+      setIsEditing(false)
+      setEditingVendor(null)
+    } catch (error) {
+      console.error('Error resetting form:', error)
+      // Force reset even if error occurs
+      setIsEditing(false)
+      setEditingVendor(null)
     }
-  };
+  }
 
-  const handleUploadProof = (payment) => {
-    setSelectedPayment(payment);
-    setSelectedFile(null);
-    setShowUploadModal(true);
-  };
+  // Edit vendor with validation
+  async function handleEdit(vendor) {
+    try {
+      if (!vendor?.id) {
+        throw new Error('Invalid vendor data')
+      }
 
-  const handleViewProof = (payment) => {
-    setSelectedPayment(payment);
-    setShowViewModal(true);
-  };
+      setEditingVendor(vendor)
+      setFormData({
+        name: vendor.name || '',
+        email: vendor.email || '',
+        phone: vendor.phone || '',
+        address: vendor.address || '',
+        category: vendor.category || '',
+        status: vendor.status || 'active'
+      })
+      setIsEditing(true)
+    } catch (error) {
+      console.error('Error editing vendor:', error)
+      toast.error('Error loading vendor data')
+    }
+  }
 
-  const handleVerifyProof = (payment) => {
-    setSelectedPayment(payment);
-    setVerificationNotes('');
-    setShowVerifyModal(true);
-  };
-
-  const handleFileDrop = (e) => {
-    e.preventDefault();
-    setIsDragOver(false);
+  // Form submission with comprehensive validation
+  async function handleSubmit(e) {
+    e?.preventDefault()
     
-    const files = Array.from(e.dataTransfer.files);
-    if (files.length > 0) {
-      validateAndSetFile(files[0]);
-    }
-  };
-
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    setIsDragOver(true);
-  };
-
-  const handleDragLeave = (e) => {
-    e.preventDefault();
-    setIsDragOver(false);
-  };
-
-  const handleFileSelect = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      validateAndSetFile(file);
-    }
-  };
-
-  const validateAndSetFile = (file) => {
-    const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
-    const maxSize = 5 * 1024 * 1024; // 5MB
-
-    if (!allowedTypes.includes(file.type)) {
-      toast.error('Only JPEG, PNG, and PDF files are allowed');
-      return;
-    }
-
-    if (file.size > maxSize) {
-      toast.error('File size must be less than 5MB');
-      return;
-    }
-
-    setSelectedFile(file);
-  };
-
-  const handleUploadSubmit = async () => {
-    if (!selectedFile || !selectedPayment) return;
-
-    setUploadLoading(true);
     try {
+      // Validate form data
+      if (!formData.name?.trim()) {
+        throw new Error('Vendor name is required')
+      }
+      if (!formData.email?.trim()) {
+        throw new Error('Email is required')
+      }
+      if (!formData.phone?.trim()) {
+        throw new Error('Phone is required')
+      }
+
+      setLoading(true)
+      
+      let result
+      if (isEditing && editingVendor?.id) {
+        result = await vendorService.updateVendor(editingVendor.id, formData)
+        toast.success('Vendor updated successfully')
+      } else {
+        result = await vendorService.createVendor(formData)
+        toast.success('Vendor created successfully')
+      }
+
+      if (result) {
+        await loadVendors()
+        resetForm()
+      }
+    } catch (error) {
+      console.error('Error submitting form:', error)
+      toast.error(error?.message || 'Failed to save vendor')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Delete vendor with confirmation
+  async function handleDelete(vendor) {
+    try {
+      if (!vendor?.id) {
+        throw new Error('Invalid vendor')
+      }
+
+      if (!window.confirm(`Are you sure you want to delete ${vendor.name}?`)) {
+        return
+      }
+
+      setLoading(true)
+      await vendorService.deleteVendor(vendor.id)
+      toast.success('Vendor deleted successfully')
+      await loadVendors()
+    } catch (error) {
+      console.error('Error deleting vendor:', error)
+      toast.error(error?.message || 'Failed to delete vendor')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Toggle vendor status with validation
+  async function handleToggleStatus(vendor) {
+    try {
+      if (!vendor?.id) {
+        throw new Error('Invalid vendor')
+      }
+
+      const newStatus = vendor.status === 'active' ? 'inactive' : 'active'
+      const updateData = { ...vendor, status: newStatus }
+      
+      setLoading(true)
+      await vendorService.updateVendor(vendor.id, updateData)
+      toast.success(`Vendor ${newStatus === 'active' ? 'activated' : 'deactivated'}`)
+      await loadVendors()
+    } catch (error) {
+      console.error('Error toggling status:', error)
+      toast.error(error?.message || 'Failed to update vendor status')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Form change handler with validation
+  function handleFormChange(e) {
+    try {
+      const { name, value } = e?.target || {}
+      if (name && value !== undefined) {
+        setFormData(prev => ({ ...prev, [name]: value }))
+      }
+    } catch (error) {
+      console.error('Error handling form change:', error)
+    }
+  }
+
+  // Load payment queue with error handling
+  async function loadPaymentQueue() {
+    try {
+      const proofQueue = await paymentService.getPaymentProofQueue()
+      setPaymentQueue(Array.isArray(proofQueue) ? proofQueue : [])
+    } catch (error) {
+      console.error('Error loading payment queue:', error)
+      setPaymentQueue([])
+      toast.error('Failed to load payment queue')
+    }
+  }
+
+  // Payment proof handlers
+  function handleUploadProof(payment) {
+    try {
+      if (!payment?.id) {
+        throw new Error('Invalid payment')
+      }
+      setUploadingProof(payment)
+      setSelectedPayment(payment)
+    } catch (error) {
+      console.error('Error selecting payment:', error)
+      toast.error('Error selecting payment')
+    }
+  }
+
+  function handleViewProof(payment) {
+    try {
+      if (!payment?.id) {
+        throw new Error('Invalid payment')
+      }
+      setSelectedPayment(payment)
+    } catch (error) {
+      console.error('Error viewing proof:', error)
+      toast.error('Error viewing payment proof')
+    }
+  }
+
+  function handleVerifyProof(payment) {
+    try {
+      if (!payment?.id) {
+        throw new Error('Invalid payment')
+      }
+      setSelectedPayment(payment)
+      setVerificationNotes('')
+    } catch (error) {
+      console.error('Error selecting payment for verification:', error)
+      toast.error('Error selecting payment')
+    }
+  }
+
+  // File handling with validation
+  function handleFileDrop(e) {
+    e.preventDefault()
+    setIsDragActive(false)
+    
+    try {
+      const files = e.dataTransfer?.files
+      if (files && files.length > 0) {
+        const file = files[0]
+        validateAndSetFile(file)
+      }
+    } catch (error) {
+      console.error('Error handling file drop:', error)
+      toast.error('Error handling dropped file')
+    }
+  }
+
+  function handleDragOver(e) {
+    e.preventDefault()
+    setIsDragActive(true)
+  }
+
+  function handleDragLeave(e) {
+    e.preventDefault()
+    setIsDragActive(false)
+  }
+
+  function handleFileSelect(e) {
+    try {
+      const files = e.target?.files
+      if (files && files.length > 0) {
+        const file = files[0]
+        validateAndSetFile(file)
+      }
+    } catch (error) {
+      console.error('Error handling file select:', error)
+      toast.error('Error selecting file')
+    }
+  }
+
+  function validateAndSetFile(file) {
+    try {
+      if (!file) {
+        throw new Error('No file provided')
+      }
+
+      const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf']
+      const maxSize = 5 * 1024 * 1024 // 5MB
+
+      if (!allowedTypes.includes(file.type)) {
+        throw new Error('Only JPEG, PNG, and PDF files are allowed')
+      }
+
+      if (file.size > maxSize) {
+        throw new Error('File size must be less than 5MB')
+      }
+
+      setProofFile(file)
+      toast.success('File selected successfully')
+    } catch (error) {
+      console.error('Error validating file:', error)
+      toast.error(error.message)
+      setProofFile(null)
+    }
+  }
+
+  // Upload proof submission
+  async function handleUploadSubmit() {
+    try {
+      if (!uploadingProof?.id) {
+        throw new Error('No payment selected')
+      }
+      if (!proofFile) {
+        throw new Error('No file selected')
+      }
+
+      setLoading(true)
+      
       const proofData = {
-        fileName: selectedFile.name,
-        fileType: selectedFile.type,
-        fileSize: selectedFile.size
-      };
+        fileName: proofFile.name,
+        fileType: proofFile.type,
+        fileSize: proofFile.size
+      }
 
-      await paymentService.uploadPaymentProof(selectedPayment.Id, proofData);
-      toast.success('Payment proof uploaded successfully');
-      setShowUploadModal(false);
-      setSelectedFile(null);
-      loadPaymentQueue();
-    } catch (err) {
-      toast.error(err.message || 'Failed to upload payment proof');
+      await paymentService.uploadPaymentProof(uploadingProof.id, proofData)
+      toast.success('Payment proof uploaded successfully')
+      
+      setUploadingProof(null)
+      setProofFile(null)
+      setSelectedPayment(null)
+      await loadPaymentQueue()
+      
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    } catch (error) {
+      console.error('Error uploading proof:', error)
+      toast.error(error?.message || 'Failed to upload payment proof')
     } finally {
-      setUploadLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
-  const handleVerifySubmit = async (approved) => {
-    if (!selectedPayment) return;
-
-    setVerifyLoading(true);
+  // Verification submission
+  async function handleVerifySubmit(approved) {
     try {
-      const verificationData = {
-        approved,
-        notes: verificationNotes
-      };
+      if (!selectedPayment?.id) {
+        throw new Error('No payment selected')
+      }
 
-      await paymentService.verifyPaymentProof(selectedPayment.Id, verificationData);
-      toast.success(`Payment proof ${approved ? 'approved' : 'rejected'} successfully`);
-      setShowVerifyModal(false);
-      setVerificationNotes('');
-      loadPaymentQueue();
-    } catch (err) {
-      toast.error(err.message || 'Failed to verify payment proof');
+      setLoading(true)
+      
+      const verificationData = {
+        approved: approved,
+        notes: verificationNotes
+      }
+
+      await paymentService.verifyPaymentProof(selectedPayment.id, verificationData)
+      toast.success(`Payment proof ${approved ? 'approved' : 'rejected'}`)
+      
+      setSelectedPayment(null)
+      setVerificationNotes('')
+      await loadPaymentQueue()
+    } catch (error) {
+      console.error('Error verifying proof:', error)
+      toast.error(error?.message || 'Failed to verify payment proof')
     } finally {
-      setVerifyLoading(false);
+      setLoading(false)
     }
-  };
-  if (loading) return <Loading type="page" />;
-  if (error) return <Error message={error} onRetry={loadVendors} />;
+  }
+
+  // Error boundary for component
+  if (error && !vendors.length) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Error 
+          message={error}
+          onRetry={loadVendors}
+          showRetry={true}
+        />
+      </div>
+    )
+  }
+
+  // Loading state
+  if (loading && !vendors.length) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Loading type="page" />
+      </div>
+    )
+  }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="container mx-auto px-4 py-8 space-y-8">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Vendor Management</h1>
-          <p className="text-gray-600">Manage vendor accounts and permissions</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <ApperIcon name="store" className="h-8 w-8 text-primary" />
+          <h1 className="text-3xl font-bold text-gray-900">Vendor Management</h1>
         </div>
-        <Button
-          onClick={() => setShowForm(true)}
-          className="mt-4 sm:mt-0 bg-primary text-white hover:bg-primary/90"
+        <Button 
+          onClick={() => setIsEditing(true)}
+          className="btn-primary"
+          disabled={loading}
         >
-          <ApperIcon name="Plus" size={16} className="mr-2" />
+          <ApperIcon name="plus" className="h-5 w-5 mr-2" />
           Add Vendor
         </Button>
       </div>
 
-      {/* Search and Filters */}
-      <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
-        <div className="flex flex-col sm:flex-row gap-4">
+      {/* Search and Filter */}
+      <div className="bg-white rounded-lg shadow-card p-6">
+        <div className="flex flex-col lg:flex-row gap-4">
           <div className="flex-1">
             <Input
               type="text"
-              placeholder="Search vendors by name, email, or company..."
+              placeholder="Search vendors by name, email, or category..."
               value={searchTerm}
               onChange={handleSearch}
               className="w-full"
+              icon={<ApperIcon name="search" className="h-5 w-5" />}
             />
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant={statusFilter === 'all' ? 'primary' : 'outline'}
-              onClick={() => handleStatusFilter('all')}
-              size="sm"
+          <div className="w-full lg:w-48">
+            <select
+              value={statusFilter}
+              onChange={(e) => handleStatusFilter(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent"
             >
-              All
-            </Button>
-            <Button
-              variant={statusFilter === 'active' ? 'primary' : 'outline'}
-              onClick={() => handleStatusFilter('active')}
-              size="sm"
-            >
-              Active
-            </Button>
-            <Button
-              variant={statusFilter === 'inactive' ? 'primary' : 'outline'}
-              onClick={() => handleStatusFilter('inactive')}
-              size="sm"
-            >
-              Inactive
-            </Button>
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
           </div>
         </div>
       </div>
 
-      {/* Vendors Table */}
-      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Vendor
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Contact
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Company
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Join Date
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredVendors.map((vendor) => (
-                <tr key={vendor.Id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">{vendor.name}</div>
-                      <div className="text-sm text-gray-500">{vendor.email}</div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{vendor.phone || '-'}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{vendor.company || '-'}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <Badge
-                      variant={vendor.isActive ? 'success' : 'secondary'}
-                      className="text-xs"
-                    >
-                      {vendor.isActive ? 'Active' : 'Inactive'}
-                    </Badge>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {new Date(vendor.joinDate).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex justify-end space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEdit(vendor)}
-                      >
-                        <ApperIcon name="Edit" size={14} />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleToggleStatus(vendor)}
-                        className={vendor.isActive ? 'text-orange-600' : 'text-green-600'}
-                      >
-                        <ApperIcon name={vendor.isActive ? 'UserX' : 'UserCheck'} size={14} />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDelete(vendor)}
-                        className="text-red-600 hover:text-red-800"
-                      >
-                        <ApperIcon name="Trash2" size={14} />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {filteredVendors.length === 0 && (
-          <div className="text-center py-12">
-            <ApperIcon name="Users" size={48} className="mx-auto text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No vendors found</h3>
-            <p className="text-gray-500">
-              {searchTerm || statusFilter !== 'all' 
-                ? 'Try adjusting your search or filter criteria'
-                : 'Get started by adding your first vendor'
-              }
-            </p>
-          </div>
-        )}
-      </div>
-
-{/* Vendor Payments Section */}
-      <div className="bg-white rounded-lg shadow-sm border mt-6">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">Vendor Payment Queue</h2>
-              <p className="text-gray-600 text-sm mt-1">Manage payment proof uploads and verifications</p>
+      {/* Vendor Form Modal */}
+      {isEditing && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-premium max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold">
+                  {editingVendor ? 'Edit Vendor' : 'Add New Vendor'}
+                </h2>
+                <button
+                  onClick={resetForm}
+                  className="text-gray-400 hover:text-gray-600"
+                  disabled={loading}
+                >
+                  <ApperIcon name="x" className="h-6 w-6" />
+                </button>
+              </div>
             </div>
-            <Button
-              onClick={loadPaymentQueue}
-              variant="outline"
-              size="sm"
-              className="mt-3 sm:mt-0"
-            >
-              <ApperIcon name="RefreshCw" size={14} className="mr-2" />
-              Refresh
-            </Button>
-          </div>
-        </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Vendor
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Amount
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Submitted
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Action
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {paymentQueue.map((payment) => (
-                <tr key={payment.Id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{payment.vendorName}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">Rs. {payment.amount?.toLocaleString()}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">
-                      {payment.submittedAt ? new Date(payment.submittedAt).toLocaleDateString() : '-'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <Badge
-                      variant={payment.status === 'verified' ? 'success' : 
-                               payment.status === 'rejected' ? 'destructive' : 'secondary'}
-                      className="text-xs"
-                    >
-                      {payment.status === 'verified' ? '✓ Verified' : 
-                       payment.status === 'rejected' ? '✗ Rejected' : 'Pending'}
-                    </Badge>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex justify-end space-x-2">
-                      {payment.paymentProof && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleViewProof(payment)}
-                          className="text-blue-600"
-                        >
-                          <ApperIcon name="Eye" size={14} className="mr-1" />
-                          View
-                        </Button>
-                      )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleUploadProof(payment)}
-                        className="text-green-600"
-                      >
-                        <ApperIcon name="Upload" size={14} className="mr-1" />
-                        Upload
-                      </Button>
-                      {payment.status === 'pending' && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleVerifyProof(payment)}
-                          className="text-purple-600"
-                        >
-                          <ApperIcon name="CheckCircle" size={14} className="mr-1" />
-                          Verify
-                        </Button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {paymentQueue.length === 0 && (
-          <div className="text-center py-12">
-            <ApperIcon name="FileCheck" size={48} className="mx-auto text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No pending payments</h3>
-            <p className="text-gray-500">All vendor payments have been processed</p>
-          </div>
-        )}
-      </div>
-
-      {/* Upload Proof Modal */}
-      {showUploadModal && selectedPayment && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setShowUploadModal(false)}></div>
-            
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg leading-6 font-medium text-gray-900">
-                    Upload Payment Proof
-                  </h3>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowUploadModal(false)}
-                  >
-                    <ApperIcon name="X" size={16} />
-                  </Button>
-                </div>
-                
-                <div className="space-y-4">
-                  <div className="text-sm text-gray-600">
-                    <p><strong>Vendor:</strong> {selectedPayment.vendorName}</p>
-                    <p><strong>Amount:</strong> Rs. {selectedPayment.amount?.toLocaleString()}</p>
-                  </div>
-                  
-                  {/* File Upload Area */}
-                  <div 
-                    className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-                      isDragOver ? 'border-primary bg-primary/5' : 'border-gray-300'
-                    }`}
-                    onDrop={handleFileDrop}
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                  >
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      onChange={handleFileSelect}
-                      accept="image/jpeg,image/png,application/pdf"
-                      className="hidden"
-                    />
-                    
-                    {selectedFile ? (
-                      <div className="space-y-2">
-                        <ApperIcon name="FileCheck" size={32} className="mx-auto text-green-500" />
-                        <p className="text-sm font-medium text-gray-900">{selectedFile.name}</p>
-                        <p className="text-xs text-gray-500">
-                          {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                        </p>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setSelectedFile(null)}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <ApperIcon name="Upload" size={32} className="mx-auto text-gray-400" />
-                        <p className="text-sm text-gray-600">
-                          Drop files here or{' '}
-                          <button
-                            type="button"
-                            className="text-primary font-medium hover:underline"
-                            onClick={() => fileInputRef.current?.click()}
-                          >
-                            browse
-                          </button>
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          JPEG, PNG, PDF up to 5MB
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  label="Vendor Name"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleFormChange}
+                  required
+                  disabled={loading}
+                />
+                <Input
+                  label="Email"
+                  name="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={handleFormChange}
+                  required
+                  disabled={loading}
+                />
+                <Input
+                  label="Phone"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleFormChange}
+                  required
+                  disabled={loading}
+                />
+                <Input
+                  label="Category"
+                  name="category"
+                  value={formData.category}
+                  onChange={handleFormChange}
+                  required
+                  disabled={loading}
+                />
               </div>
               
-              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+              <Input
+                label="Address"
+                name="address"
+                value={formData.address}
+                onChange={handleFormChange}
+                required
+                disabled={loading}
+              />
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Status
+                </label>
+                <select
+                  name="status"
+                  value={formData.status}
+                  onChange={handleFormChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent"
+                  disabled={loading}
+                >
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4">
+                <Button
+                  type="button"
+                  onClick={resetForm}
+                  variant="secondary"
+                  disabled={loading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={loading}
+                >
+                  {loading ? 'Saving...' : (editingVendor ? 'Update' : 'Create')}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Vendors List */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+        {filteredVendors.map((vendor) => (
+          <div key={vendor?.id || Math.random()} className="bg-white rounded-lg shadow-card hover:shadow-premium transition-shadow p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                  {vendor?.name || 'Unknown Vendor'}
+                </h3>
+                <p className="text-sm text-gray-600">{vendor?.category || 'No category'}</p>
+              </div>
+              <Badge 
+                variant={vendor?.status === 'active' ? 'success' : 'secondary'}
+                className="ml-2"
+              >
+                {vendor?.status || 'unknown'}
+              </Badge>
+            </div>
+
+            <div className="space-y-2 mb-4">
+              <div className="flex items-center text-sm text-gray-600">
+                <ApperIcon name="mail" className="h-4 w-4 mr-2" />
+                {vendor?.email || 'No email'}
+              </div>
+              <div className="flex items-center text-sm text-gray-600">
+                <ApperIcon name="phone" className="h-4 w-4 mr-2" />
+                {vendor?.phone || 'No phone'}
+              </div>
+              <div className="flex items-center text-sm text-gray-600">
+                <ApperIcon name="map-pin" className="h-4 w-4 mr-2" />
+                {vendor?.address || 'No address'}
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center">
+              <div className="flex space-x-2">
+                <Button
+                  onClick={() => handleEdit(vendor)}
+                  size="sm"
+                  variant="outline"
+                  disabled={loading}
+                >
+                  <ApperIcon name="edit" className="h-4 w-4" />
+                </Button>
+                <Button
+                  onClick={() => handleToggleStatus(vendor)}
+                  size="sm"
+                  variant="outline"
+                  disabled={loading}
+                >
+                  <ApperIcon 
+                    name={vendor?.status === 'active' ? 'pause' : 'play'} 
+                    className="h-4 w-4" 
+                  />
+                </Button>
+                <Button
+                  onClick={() => handleDelete(vendor)}
+                  size="sm"
+                  variant="outline"
+                  className="text-red-600 hover:text-red-700"
+                  disabled={loading}
+                >
+                  <ApperIcon name="trash-2" className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Product Assignment Section */}
+            {(editingVendor?.id === vendor?.id || vendor?.showProducts) && (
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <ProductAssignment
+                  vendor={editingVendor || { name: formData.name, id: 'new' }}
+                  availableProducts={availableProducts}
+                  loading={productsLoading}
+                  onProductsChange={(products) => {
+                    // Handle product assignment changes
+                    console.log('Products assigned:', products)
+                  }}
+                />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Empty State */}
+      {filteredVendors.length === 0 && !loading && (
+        <div className="text-center py-12">
+          <ApperIcon name="store" className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No vendors found</h3>
+          <p className="text-gray-500 mb-6">
+            {searchTerm || statusFilter !== 'all' 
+              ? 'Try adjusting your search or filter criteria' 
+              : 'Get started by adding your first vendor'}
+          </p>
+          <Button 
+            onClick={() => setIsEditing(true)}
+            className="btn-primary"
+            disabled={loading}
+          >
+            <ApperIcon name="plus" className="h-5 w-5 mr-2" />
+            Add First Vendor
+          </Button>
+        </div>
+      )}
+
+      {/* Payment Proof Queue Section */}
+      {paymentQueue.length > 0 && (
+        <div className="bg-white rounded-lg shadow-card p-6">
+          <h2 className="text-xl font-semibold mb-4 flex items-center">
+            <ApperIcon name="credit-card" className="h-6 w-6 mr-2" />
+            Payment Proof Queue ({paymentQueue.length})
+          </h2>
+          
+          <div className="space-y-4">
+            {paymentQueue.map((payment) => (
+              <div key={payment?.id || Math.random()} className="border border-gray-200 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <h4 className="font-medium">Order #{payment?.orderId || 'Unknown'}</h4>
+                    <p className="text-sm text-gray-600">
+                      Amount: ${payment?.amount || '0.00'} | 
+                      Vendor: {payment?.vendorName || 'Unknown'}
+                    </p>
+                  </div>
+                  <Badge variant={payment?.status === 'pending' ? 'warning' : 'success'}>
+                    {payment?.status || 'unknown'}
+                  </Badge>
+                </div>
+                
+                <div className="flex space-x-2">
+                  {payment?.status === 'pending' && (
+                    <Button
+                      onClick={() => handleUploadProof(payment)}
+                      size="sm"
+                      variant="outline"
+                      disabled={loading}
+                    >
+                      Upload Proof
+                    </Button>
+                  )}
+                  {payment?.proofUrl && (
+                    <>
+                      <Button
+                        onClick={() => handleViewProof(payment)}
+                        size="sm"
+                        variant="outline"
+                        disabled={loading}
+                      >
+                        View Proof
+                      </Button>
+                      <Button
+                        onClick={() => handleVerifyProof(payment)}
+                        size="sm"
+                        className="btn-primary"
+                        disabled={loading}
+                      >
+                        Verify
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* File Upload Modal */}
+      {uploadingProof && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-premium max-w-md w-full">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold">Upload Payment Proof</h2>
+                <button
+                  onClick={() => {
+                    setUploadingProof(null)
+                    setProofFile(null)
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                  disabled={loading}
+                >
+                  <ApperIcon name="x" className="h-6 w-6" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6">
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 mb-2">
+                  Order: #{uploadingProof?.orderId || 'Unknown'}
+                </p>
+                <p className="text-sm text-gray-600">
+                  Amount: ${uploadingProof?.amount || '0.00'}
+                </p>
+              </div>
+
+              <div
+                className={`border-2 border-dashed rounded-lg p-6 text-center ${
+                  isDragActive ? 'border-primary bg-primary/5' : 'border-gray-300'
+                }`}
+                onDrop={handleFileDrop}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  onChange={handleFileSelect}
+                  accept="image/*,.pdf"
+                  className="hidden"
+                />
+                
+                <ApperIcon name="upload" className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                <p className="text-sm text-gray-600 mb-2">
+                  Drag and drop your file here, or{' '}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="text-primary hover:text-primary/80"
+                    disabled={loading}
+                  >
+                    browse
+                  </button>
+                </p>
+                <p className="text-xs text-gray-500">
+                  Supports: JPEG, PNG, PDF (Max 5MB)
+                </p>
+              </div>
+
+              {proofFile && (
+                <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center">
+                    <ApperIcon name="file" className="h-5 w-5 text-green-600 mr-2" />
+                    <span className="text-sm text-green-800">{proofFile.name}</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end space-x-3 mt-6">
+                <Button
+                  onClick={() => {
+                    setUploadingProof(null)
+                    setProofFile(null)
+                  }}
+                  variant="secondary"
+                  disabled={loading}
+                >
+                  Cancel
+                </Button>
                 <Button
                   onClick={handleUploadSubmit}
-                  disabled={!selectedFile || uploadLoading}
-                  className="w-full sm:w-auto sm:ml-3 bg-primary text-white hover:bg-primary/90"
+                  className="btn-primary"
+                  disabled={!proofFile || loading}
                 >
-                  {uploadLoading ? (
-                    <ApperIcon name="Loader2" size={16} className="animate-spin mr-2" />
-                  ) : null}
-                  Upload Proof
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowUploadModal(false)}
-                  className="mt-3 w-full sm:mt-0 sm:w-auto"
-                >
-                  Cancel
+                  {loading ? 'Uploading...' : 'Upload'}
                 </Button>
               </div>
             </div>
@@ -705,346 +890,86 @@ const handleSubmit = async (e) => {
         </div>
       )}
 
-      {/* View Proof Modal */}
-      {showViewModal && selectedPayment && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setShowViewModal(false)}></div>
-            
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg leading-6 font-medium text-gray-900">
-                    Payment Proof - {selectedPayment.vendorName}
-                  </h3>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowViewModal(false)}
-                  >
-                    <ApperIcon name="X" size={16} />
-                  </Button>
-                </div>
-                
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="font-medium">Amount:</span> Rs. {selectedPayment.amount?.toLocaleString()}
-                    </div>
-                    <div>
-                      <span className="font-medium">Status:</span> {selectedPayment.status}
-                    </div>
-                    <div>
-                      <span className="font-medium">Submitted:</span> {
-                        selectedPayment.submittedAt ? new Date(selectedPayment.submittedAt).toLocaleString() : '-'
-                      }
-                    </div>
-                    <div>
-                      <span className="font-medium">File:</span> {selectedPayment.paymentProofFileName || 'No file'}
-                    </div>
-                  </div>
-                  
-                  {selectedPayment.paymentProof && (
-                    <div className="border rounded-lg p-4">
-                      <div className="text-center">
-                        {selectedPayment.paymentProof.startsWith('data:image/') ? (
-                          <img 
-                            src={selectedPayment.paymentProof} 
-                            alt="Payment Proof" 
-                            className="max-w-full max-h-96 mx-auto rounded"
-                          />
-                        ) : (
-                          <div className="py-8">
-                            <ApperIcon name="FileText" size={48} className="mx-auto text-gray-400 mb-2" />
-                            <p className="text-gray-600">PDF Document</p>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => window.open(selectedPayment.paymentProof, '_blank')}
-                              className="mt-2"
-                            >
-                              <ApperIcon name="ExternalLink" size={14} className="mr-2" />
-                              Open PDF
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowViewModal(false)}
-                  className="w-full sm:w-auto"
+      {/* Verification Modal */}
+      {selectedPayment && !uploadingProof && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-premium max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold">Verify Payment Proof</h2>
+                <button
+                  onClick={() => setSelectedPayment(null)}
+                  className="text-gray-400 hover:text-gray-600"
+                  disabled={loading}
                 >
-                  Close
-                </Button>
+                  <ApperIcon name="x" className="h-6 w-6" />
+                </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* Verify Proof Modal */}
-      {showVerifyModal && selectedPayment && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={() => setShowVerifyModal(false)}></div>
-            
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg leading-6 font-medium text-gray-900">
-                    Verify Payment Proof
-                  </h3>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowVerifyModal(false)}
-                  >
-                    <ApperIcon name="X" size={16} />
-                  </Button>
-                </div>
-                
-                <div className="space-y-4">
-                  <div className="text-sm text-gray-600">
-                    <p><strong>Vendor:</strong> {selectedPayment.vendorName}</p>
-                    <p><strong>Amount:</strong> Rs. {selectedPayment.amount?.toLocaleString()}</p>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Verification Notes
-                    </label>
-                    <textarea
-                      value={verificationNotes}
-                      onChange={(e) => setVerificationNotes(e.target.value)}
-                      rows={3}
-                      placeholder="Add notes about the verification..."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                    />
-                  </div>
-                </div>
+            <div className="p-6">
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 mb-1">
+                  Order: #{selectedPayment?.orderId || 'Unknown'}
+                </p>
+                <p className="text-sm text-gray-600 mb-1">
+                  Amount: ${selectedPayment?.amount || '0.00'}
+                </p>
+                <p className="text-sm text-gray-600">
+                  Vendor: {selectedPayment?.vendorName || 'Unknown'}
+                </p>
               </div>
-              
-              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse space-x-3 space-x-reverse">
-                <Button
-                  onClick={() => handleVerifySubmit(true)}
-                  disabled={verifyLoading}
-                  className="w-full sm:w-auto bg-green-600 text-white hover:bg-green-700"
-                >
-                  {verifyLoading ? (
-                    <ApperIcon name="Loader2" size={16} className="animate-spin mr-2" />
-                  ) : (
-                    <ApperIcon name="CheckCircle" size={16} className="mr-2" />
-                  )}
-                  Approve
-                </Button>
+
+              {selectedPayment?.proofUrl && (
+                <div className="mb-4">
+                  <img
+                    src={selectedPayment.proofUrl}
+                    alt="Payment Proof"
+                    className="w-full h-48 object-cover rounded-lg border"
+                    onError={(e) => {
+                      e.target.style.display = 'none'
+                    }}
+                  />
+                </div>
+              )}
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Verification Notes
+                </label>
+                <textarea
+                  value={verificationNotes}
+                  onChange={(e) => setVerificationNotes(e.target.value)}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-accent focus:border-accent"
+                  placeholder="Add notes about the verification..."
+                  disabled={loading}
+                />
+              </div>
+
+              <div className="flex justify-end space-x-3">
                 <Button
                   onClick={() => handleVerifySubmit(false)}
-                  disabled={verifyLoading}
-                  className="w-full sm:w-auto mt-3 sm:mt-0 bg-red-600 text-white hover:bg-red-700"
+                  variant="secondary"
+                  disabled={loading}
+                  className="text-red-600 hover:text-red-700"
                 >
-                  {verifyLoading ? (
-                    <ApperIcon name="Loader2" size={16} className="animate-spin mr-2" />
-                  ) : (
-                    <ApperIcon name="XCircle" size={16} className="mr-2" />
-                  )}
-                  Reject
+                  {loading ? 'Processing...' : 'Reject'}
                 </Button>
                 <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowVerifyModal(false)}
-                  className="mt-3 w-full sm:mt-0 sm:w-auto"
+                  onClick={() => handleVerifySubmit(true)}
+                  className="btn-primary"
+                  disabled={loading}
                 >
-                  Cancel
+                  {loading ? 'Processing...' : 'Approve'}
                 </Button>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add/Edit Vendor Modal */}
-      {showForm && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={resetForm}></div>
-            
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
-              <form onSubmit={handleSubmit}>
-                <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900">
-                      {editingVendor ? 'Edit Vendor' : 'Add New Vendor'}
-                    </h3>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={resetForm}
-                    >
-                      <ApperIcon name="X" size={16} />
-                    </Button>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Vendor Information */}
-                    <div className="space-y-4">
-                      <h4 className="text-md font-medium text-gray-900 border-b pb-2">
-                        Vendor Information
-                      </h4>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Name *
-                        </label>
-                        <Input
-                          type="text"
-                          name="name"
-                          value={formData.name}
-                          onChange={handleFormChange}
-                          required
-                          className="w-full"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Email *
-                        </label>
-                        <Input
-                          type="email"
-                          name="email"
-                          value={formData.email}
-                          onChange={handleFormChange}
-                          required
-                          className="w-full"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Password {editingVendor ? '(leave empty to keep current)' : '*'}
-                        </label>
-                        <Input
-                          type="password"
-                          name="password"
-                          value={formData.password}
-                          onChange={handleFormChange}
-                          required={!editingVendor}
-                          className="w-full"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Company
-                        </label>
-                        <Input
-                          type="text"
-                          name="company"
-                          value={formData.company}
-                          onChange={handleFormChange}
-                          className="w-full"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Phone
-                        </label>
-                        <Input
-                          type="tel"
-                          name="phone"
-                          value={formData.phone}
-                          onChange={handleFormChange}
-                          className="w-full"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Address
-                        </label>
-                        <textarea
-                          name="address"
-                          value={formData.address}
-                          onChange={handleFormChange}
-                          rows={3}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                        />
-                      </div>
-                      
-                      <div className="flex items-center">
-                        <input
-                          type="checkbox"
-                          id="isActive"
-                          name="isActive"
-                          checked={formData.isActive}
-                          onChange={handleFormChange}
-                          className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
-                        />
-                        <label htmlFor="isActive" className="ml-2 block text-sm text-gray-900">
-                          Active vendor
-                        </label>
-                      </div>
-                    </div>
-
-                    {/* Product Assignment */}
-                    <div className="space-y-4">
-                      <h4 className="text-md font-medium text-gray-900 border-b pb-2">
-                        Product Assignment
-                      </h4>
-                      
-                      <ProductAssignment
-                        vendor={editingVendor || { name: formData.name, Id: 'new' }}
-                        availableProducts={availableProducts}
-                        onAssign={(productIds) => {
-                          setSelectedProducts(productIds);
-                          toast.success(`${productIds.length} products will be assigned`);
-                        }}
-                        loading={false}
-                        error={null}
-                      />
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                  <Button
-                    type="submit"
-                    disabled={formLoading}
-                    className="w-full sm:w-auto sm:ml-3 bg-primary text-white hover:bg-primary/90"
-                  >
-                    {formLoading ? (
-                      <ApperIcon name="Loader2" size={16} className="animate-spin mr-2" />
-                    ) : null}
-                    {editingVendor ? 'Update' : 'Create'} Vendor
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={resetForm}
-                    className="mt-3 w-full sm:mt-0 sm:w-auto"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </form>
             </div>
           </div>
         </div>
       )}
     </div>
-  );
-};
+  )
+}
 
-export default VendorManagement;
+export default VendorManagement
