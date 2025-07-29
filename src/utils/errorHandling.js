@@ -53,19 +53,32 @@ static shouldRetry(error, attemptCount = 0, maxRetries = 3, context = '') {
     const type = this.classifyError(error);
     const message = error.message?.toLowerCase() || '';
     
-    // Upload-specific retry logic
+    // Upload-specific retry logic with customer support considerations
     if (context.includes('upload') || context.includes('file')) {
       // More aggressive retry for upload operations
       const uploadRetryableTypes = ['network', 'timeout', 'server'];
       
       if (uploadRetryableTypes.includes(type)) {
-        // Don't retry file format or size errors
+        // Don't retry file format or size errors - direct to support
         if (message.includes('format') || message.includes('size') || message.includes('type')) {
+          // Flag for customer support
+          localStorage.setItem('checkout-upload-error', JSON.stringify({
+            type: 'format_size_error',
+            message: error.message,
+            timestamp: Date.now(),
+            needsSupport: true
+          }));
           return false;
         }
         
-        // Don't retry permanent upload errors
+        // Don't retry permanent upload errors - offer alternatives
         if (message.includes('unsupported') || message.includes('invalid')) {
+          localStorage.setItem('checkout-upload-error', JSON.stringify({
+            type: 'unsupported_error',
+            message: error.message,
+            timestamp: Date.now(),
+            needsAlternatives: true
+          }));
           return false;
         }
         
@@ -77,6 +90,17 @@ static shouldRetry(error, attemptCount = 0, maxRetries = 3, context = '') {
         // Retry timeout issues for uploads
         if (type === 'timeout') {
           return attemptCount < Math.min(maxRetries + 1, 4);
+        }
+        
+        // After 2 failed attempts, suggest customer support
+        if (attemptCount >= 2) {
+          localStorage.setItem('checkout-upload-error', JSON.stringify({
+            type: 'repeated_failure',
+            message: error.message,
+            timestamp: Date.now(),
+            attemptCount,
+            suggestSupport: true
+          }));
         }
         
         return attemptCount < maxRetries;
@@ -108,6 +132,55 @@ static shouldRetry(error, attemptCount = 0, maxRetries = 3, context = '') {
     }
     
     return false;
+  }
+
+  // Enhanced error guidance for customer support
+  static getCustomerSupportGuidance(error, context = '') {
+    const type = this.classifyError(error);
+    const message = error.message?.toLowerCase() || '';
+    
+    const guidance = {
+      showChat: false,
+      showWhatsApp: false,
+      showEmail: false,
+      showFAQ: false,
+      showSamples: false,
+      priority: 'normal'
+    };
+    
+    if (context.includes('upload')) {
+      guidance.showFAQ = true;
+      guidance.showSamples = true;
+      
+      if (message.includes('format') || message.includes('heic') || message.includes('unsupported')) {
+        guidance.showChat = true;
+        guidance.showSamples = true;
+        guidance.priority = 'high';
+      } else if (message.includes('size') || message.includes('large')) {
+        guidance.showChat = true;
+        guidance.showFAQ = true;
+        guidance.priority = 'medium';
+      } else if (type === 'network' || type === 'timeout') {
+        guidance.showWhatsApp = true;
+        guidance.showEmail = true;
+        guidance.priority = 'medium';
+      } else {
+        // General upload issues
+        guidance.showChat = true;
+        guidance.showWhatsApp = true;
+        guidance.priority = 'high';
+      }
+    } else if (context.includes('checkout')) {
+      guidance.showChat = true;
+      guidance.showWhatsApp = true;
+      guidance.priority = 'high';
+    } else {
+      // General errors
+      guidance.showEmail = true;
+      guidance.priority = 'normal';
+    }
+    
+    return guidance;
   }
 
   static getRetryDelay(attemptCount, baseDelay = 1000) {

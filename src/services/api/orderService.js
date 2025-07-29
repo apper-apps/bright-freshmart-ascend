@@ -142,6 +142,13 @@ const newOrder = {
       vendor_visibility: orderData.vendor_visibility || 'immediate',
       // Initial status for vendor portal display - new orders require immediate attention
       status: orderData.status || 'awaiting_payment_verification',
+      // Order reservation system for customer support
+      reservationStatus: orderData.reservationStatus || null,
+      reservationExpiry: orderData.reservationExpiry || null,
+      reservationId: orderData.reservationId || null,
+      supportContactUsed: orderData.supportContactUsed || null,
+      alternativeUploadMethod: orderData.alternativeUploadUsed || null,
+      customerSupportNotes: orderData.customerSupportNotes || null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -570,6 +577,7 @@ async updateVerificationStatus(orderId, status, notes = '') {
       updatedOrder.approvalStatus = 'approved'; // Update approval status
       updatedOrder.adminConfirmed = true;
       updatedOrder.proofStatus = 'verified';
+      updatedOrder.reservationStatus = 'fulfilled'; // Mark reservation as fulfilled
       
       // Immediately update to confirmed status
       setTimeout(async () => {
@@ -584,10 +592,55 @@ async updateVerificationStatus(orderId, status, notes = '') {
       updatedOrder.paymentRejectedAt = new Date().toISOString();
       updatedOrder.approvalStatus = 'rejected'; // Update approval status
       updatedOrder.proofStatus = 'rejected';
+      updatedOrder.reservationStatus = 'cancelled'; // Cancel reservation
     }
 
     this.orders[orderIndex] = updatedOrder;
     return { ...updatedOrder };
+  }
+
+  // Enhanced reservation management for customer support
+  async reserveOrder(orderData, reservationDuration = 3600000) { // 1 hour default
+    const reservationId = `RES-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const reservationExpiry = new Date(Date.now() + reservationDuration).toISOString();
+    
+    const reservedOrder = {
+      ...orderData,
+      reservationStatus: 'active',
+      reservationId,
+      reservationExpiry,
+      reservationDuration,
+      status: 'reserved_pending_verification',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    return reservedOrder;
+  }
+
+  async extendReservation(orderId, additionalTime = 1800000) { // 30 minutes default
+    const orderIndex = this.orders.findIndex(o => o.id === parseInt(orderId));
+    if (orderIndex === -1) {
+      throw new Error('Order not found');
+    }
+
+    const order = this.orders[orderIndex];
+    if (order.reservationStatus !== 'active') {
+      throw new Error('Order is not reserved');
+    }
+
+    const currentExpiry = new Date(order.reservationExpiry);
+    const newExpiry = new Date(currentExpiry.getTime() + additionalTime);
+
+    this.orders[orderIndex] = {
+      ...order,
+      reservationExpiry: newExpiry.toISOString(),
+      reservationExtended: true,
+      reservationExtendedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    return { ...this.orders[orderIndex] };
   }
 
 // Enhanced auto-refresh functionality for order tracking

@@ -19,6 +19,18 @@ const ChatWidget = () => {
   const [loading, setLoading] = useState(false);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [isCheckoutPage, setIsCheckoutPage] = useState(false);
+
+  useEffect(() => {
+    const isOnCheckout = location.pathname === '/checkout';
+    setIsCheckoutPage(isOnCheckout);
+    
+    // Auto-open chat widget on checkout page if there's an upload error
+    if (isOnCheckout && localStorage.getItem('checkout-upload-error')) {
+      setIsOpen(true);
+      localStorage.removeItem('checkout-upload-error');
+    }
+  }, [location.pathname]);
 
   useEffect(() => {
     if (isOpen) {
@@ -132,8 +144,13 @@ const ChatWidget = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const toggleChat = () => {
+const toggleChat = () => {
     setIsOpen(!isOpen);
+    
+    // Track chat opening on checkout page
+    if (!isOpen && isCheckoutPage) {
+      toast.info('Customer support is here to help with your checkout!');
+    }
   };
 
   return (
@@ -152,11 +169,12 @@ const ChatWidget = () => {
       </button>
 
       {/* Chat Widget */}
-      <div className={`
+<div className={`
         absolute bottom-0 right-0 w-80 h-96 bg-white rounded-lg shadow-2xl
         transform transition-all duration-300 origin-bottom-right
         ${isOpen ? 'scale-100 opacity-100' : 'scale-0 opacity-0'}
         sm:w-96 sm:h-[500px]
+        ${isCheckoutPage ? 'border-2 border-blue-200' : ''}
       `}>
         {/* Header */}
         <div className="bg-gradient-to-r from-primary to-accent text-white p-4 rounded-t-lg">
