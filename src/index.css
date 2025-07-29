@@ -524,3 +524,191 @@
   color: #dc2626;
   filter: drop-shadow(0 1px 2px rgba(220, 38, 38, 0.3));
 }
+
+/* Order Status Color System for Enhanced Visual Tracking */
+.order-status-pending {
+  @apply border-red-200 bg-red-50;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.1);
+}
+
+.order-status-pending .order-header {
+  @apply bg-red-100 border-b border-red-200;
+}
+
+.order-status-pending .status-indicator {
+  @apply bg-red-500;
+  animation: status-pulse 2s infinite;
+}
+
+.order-status-verified, .order-status-confirmed {
+  @apply border-green-200 bg-green-50;
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.1);
+}
+
+.order-status-verified .order-header, .order-status-confirmed .order-header {
+  @apply bg-green-100 border-b border-green-200;
+}
+
+.order-status-verified .status-indicator, .order-status-confirmed .status-indicator {
+  @apply bg-green-500;
+}
+
+.order-status-shipped {
+  @apply border-blue-200 bg-blue-50;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
+}
+
+.order-status-shipped .order-header {
+  @apply bg-blue-100 border-b border-blue-200;
+}
+
+.order-status-shipped .status-indicator {
+  @apply bg-blue-500;
+}
+
+.order-status-delivered {
+  @apply border-emerald-200 bg-emerald-50;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.1);
+}
+
+.order-status-delivered .order-header {
+  @apply bg-emerald-100 border-b border-emerald-200;
+}
+
+.order-status-delivered .status-indicator {
+  @apply bg-emerald-500;
+}
+
+@keyframes status-pulse {
+  0%, 100% { 
+    opacity: 1; 
+    transform: scale(1);
+  }
+  50% { 
+    opacity: 0.7; 
+    transform: scale(1.1);
+  }
+}
+
+/* Enhanced Payment Proof Modal */
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.payment-proof-modal img.loaded {
+  animation: image-load-in 0.3s ease-out;
+}
+
+@keyframes image-load-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Vendor Alert Priority Styling */
+.vendor-alert-urgent {
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 50%, #fecaca 100%);
+  border-left: 4px solid #dc2626;
+  animation: urgent-attention 3s infinite;
+}
+
+@keyframes urgent-attention {
+  0%, 100% { 
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.15);
+  }
+  50% { 
+    box-shadow: 0 6px 20px rgba(220, 38, 38, 0.25);
+  }
+}
+
+.vendor-response-deadline {
+  background: linear-gradient(45deg, #dc2626, #ef4444);
+  color: white;
+  animation: deadline-flash 2s infinite;
+}
+
+@keyframes deadline-flash {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+
+/* Enhanced Status Badge Colors */
+.status-badge-pending {
+  @apply bg-red-100 text-red-800 border border-red-200;
+  animation: badge-attention 2s infinite;
+}
+
+.status-badge-verified {
+  @apply bg-green-100 text-green-800 border border-green-200;
+}
+
+.status-badge-shipped {
+  @apply bg-blue-100 text-blue-800 border border-blue-200;
+}
+
+.status-badge-delivered {
+  @apply bg-emerald-100 text-emerald-800 border border-emerald-200;
+}
+
+@keyframes badge-attention {
+  0%, 100% { 
+    transform: scale(1);
+    background-color: rgb(254 226 226);
+  }
+  50% { 
+    transform: scale(1.02);
+    background-color: rgb(252 165 165);
+  }
+}
+
+/* Enhanced Search and Filter Styling */
+.vendor-search-enhanced .search-input:focus {
+  @apply ring-2 ring-blue-500 border-blue-500;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.vendor-filter-select:focus {
+  @apply ring-2 ring-blue-500 border-blue-500;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Vendor Order Item Status Colors */
+.vendor-item-pending {
+  @apply bg-red-50 border-red-200;
+  animation: item-pending-pulse 3s infinite;
+}
+
+.vendor-item-available {
+  @apply bg-green-50 border-green-200;
+}
+
+.vendor-item-unavailable {
+  @apply bg-gray-50 border-gray-200;
+}
+
+@keyframes item-pending-pulse {
+  0%, 100% { 
+    background-color: rgb(254 242 242);
+    border-color: rgb(254 202 202);
+  }
+  50% { 
+    background-color: rgb(252 226 226);
+    border-color: rgb(248 180 180);
+  }
+}

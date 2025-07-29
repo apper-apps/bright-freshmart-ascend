@@ -12,6 +12,45 @@ import OrderStatusBadge from "@/components/molecules/OrderStatusBadge";
 import Error from "@/components/ui/Error";
 import Empty from "@/components/ui/Empty";
 import Loading from "@/components/ui/Loading";
+// Order status color mapping for better visual tracking
+const getStatusColors = (status, verificationStatus) => {
+  if (status === 'pending' || verificationStatus === 'pending') {
+    return {
+      card: 'border-red-200 bg-red-50',
+      header: 'bg-red-100',
+      text: 'text-red-900',
+      indicator: 'bg-red-500 animate-pulse'
+    };
+  } else if (status === 'confirmed' || verificationStatus === 'verified') {
+    return {
+      card: 'border-green-200 bg-green-50',
+      header: 'bg-green-100', 
+      text: 'text-green-900',
+      indicator: 'bg-green-500'
+    };
+  } else if (status === 'shipped') {
+    return {
+      card: 'border-blue-200 bg-blue-50',
+      header: 'bg-blue-100',
+      text: 'text-blue-900', 
+      indicator: 'bg-blue-500'
+    };
+  } else if (status === 'delivered') {
+    return {
+      card: 'border-emerald-200 bg-emerald-50',
+      header: 'bg-emerald-100',
+      text: 'text-emerald-900',
+      indicator: 'bg-emerald-500'
+    };
+  }
+  return {
+    card: 'border-gray-200 bg-white',
+    header: 'bg-gray-50',
+    text: 'text-gray-900',
+    indicator: 'bg-gray-400'
+  };
+};
+
 const Orders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -101,7 +140,7 @@ const Orders = () => {
       {/* Mobile-first responsive order cards */}
       <div className="space-y-4 sm:space-y-6">
         {orders.map((order) => (
-          <div key={order.id} className="card p-4 sm:p-6 hover:shadow-premium transition-shadow duration-300 mobile-order-card">
+<div key={order.id} className={`card p-4 sm:p-6 hover:shadow-premium transition-all duration-300 mobile-order-card ${getStatusColors(order.status, order.verificationStatus).card}`}>
             {/* Mobile-optimized header */}
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-4">
               <div className="flex items-start space-x-3 sm:space-x-4 mb-3 sm:mb-0">
@@ -314,9 +353,9 @@ const Orders = () => {
                             )}
                           </div>
                           <div className="relative group">
-                            <img
+<img
                               src={(() => {
-                                // Validate and return payment proof image URL
+                                // Enhanced validation and return payment proof image URL
                                 const proofData = order.paymentProof?.dataUrl;
                                 if (proofData && typeof proofData === 'string') {
                                   // Check if it's a valid base64 data URL
@@ -328,15 +367,15 @@ const Orders = () => {
                                     return proofData;
                                   }
                                 }
-                                // Fallback to enhanced placeholder
-                                return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDE1MCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNTAiIGhlaWdodD0iMTAwIiBmaWxsPSIjRUZGNkZGIiBzdHJva2U9IiNENERBRjciIHN0cm9rZS13aWR0aD0iMSIvPgo8cGF0aCBkPSJNNjAgNDBMOTAgNzBMNjAgNDBaIiBzdHJva2U9IiM2MkM0NjIiIHN0cm9rZS13aWR0aD0iMiIgZmlsbD0ibm9uZSIvPgo8Y2lyY2xlIGN4PSI3MCIgY3k9IjMwIiByPSI1IiBmaWxsPSIjNjJDNDYyIi8+Cjx0ZXh0IHg9Ijc1IiB5PSI1NSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjEwIiBmaWxsPSIjMzc0MTUxIj5QYXltZW50IFByb29mPC90ZXh0Pgo8dGV4dCB4PSI3NSIgeT0iNjgiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSI4IiBmaWxsPSIjNjc3NDgwIj5DbGljayB0byBWaWV3PC90ZXh0Pgo8L3N2Zz4K';
+                                // Enhanced placeholder with better visual feedback
+                                return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDE1MCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNTAiIGhlaWdodD0iMTAwIiBmaWxsPSIjRTBGMkZFIiBzdHJva2U9IiNCN0U0QzciIHN0cm9rZS13aWR0aD0iMiIgcng9IjgiLz4KPHBhdGggZD0iTTYwIDM1TDkwIDY1TDYwIDM1WiIgc3Ryb2tlPSIjMzQ4M0Y3IiBzdHJva2Utd2lkdGg9IjMiIGZpbGw9Im5vbmUiLz4KPGNpcmNsZSBjeD0iNzAiIGN5PSIyNSIgcj0iNiIgZmlsbD0iIzM0ODNGNyIvPgo8dGV4dCB4PSI3NSIgeT0iNTgiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxMiIgZmlsbD0iIzM0ODNGNyIgZm9udC13ZWlnaHQ9ImJvbGQiPlBheW1lbnQgUHJvb2Y8L3RleHQ+Cjx0ZXh0IHg9Ijc1IiB5PSI3NSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjEwIiBmaWxsPSIjNjM2NjZCIj5DbGljayB0byBFbmxhcmdlPC90ZXh0Pgo8L3N2Zz4K';
                               })()}
                               alt="Payment proof"
-                              className="w-24 h-16 sm:w-32 sm:h-20 object-cover rounded-lg border border-blue-200 cursor-pointer transition-transform group-hover:scale-105"
+                              className="w-24 h-16 sm:w-32 sm:h-20 object-cover rounded-lg border-2 border-blue-200 cursor-pointer transition-all duration-200 group-hover:scale-105 group-hover:border-blue-400 group-hover:shadow-lg"
                               onError={(e) => {
-                                // Only set fallback if not already a fallback
+                                // Enhanced error fallback with better visual feedback
                                 if (!e.target.src.includes('data:image/svg+xml')) {
-                                  e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDE1MCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNTAiIGhlaWdodD0iMTAwIiBmaWxsPSIjRkVGMkYyIiBzdHJva2U9IiNGQ0E1QTUiIHN0cm9rZS13aWR0aD0iMSIvPgo8cGF0aCBkPSJNNTUgNDVMNzAgNjBMODUgNDVNNzAgNDBWNzAiIHN0cm9rZT0iI0VGNDQ0NCIgc3Ryb2tlLXdpZHRoPSIyIiBmaWxsPSJub25lIi8+Cjx0ZXh0IHg9Ijc1IiB5PSI1NSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjEwIiBmaWxsPSIjOTkxQjFCIj5JbWFnZSBFcnJvcjwvdGV4dD4KPHR4dCB4PSI3NSIgeT0iNjgiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSI4IiBmaWxsPSIjOTkxQjFCIj5DbGljayB0byBWaWV3PC90ZXh0Pgo8L3N2Zz4K';
+                                  e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDE1MCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNTAiIGhlaWdodD0iMTAwIiBmaWxsPSIjRkVGMkYyIiBzdHJva2U9IiNGQ0E1QTUiIHN0cm9rZS13aWR0aD0iMiIgcng9IjgiLz4KPHBhdGggZD0iTTU1IDQwSDg1TTU1IDUwSDg1TTU1IDYwSDc1IiBzdHJva2U9IiNFRjQ0NDQiIHN0cm9rZS13aWR0aD0iMiIgZmlsbD0ibm9uZSIvPgo8Y2lyY2xlIGN4PSI3MCIgY3k9IjI1IiByPSI4IiBzdHJva2U9IiNFRjQ0NDQiIHN0cm9rZS13aWR0aD0iMiIgZmlsbD0ibm9uZSIvPgo8cGF0aCBkPSJNNjUgMjBMNzUgMzBNNzUgMjBMNjUgMzAiIHN0cm9rZT0iI0VGNDQ0NCIgc3Ryb2tlLXdpZHRoPSIyIi8+Cjx0ZXh0IHg9Ijc1IiB5PSI4NSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjEwIiBmaWxsPSIjRUY0NDQ0IiBmb250LXdlaWdodD0iYm9sZCI+SW1hZ2UgTm90IEF2YWlsYWJsZTwvdGV4dD4KPC9zdmc+Cg==';
                                 }
                               }}
                               onClick={() => {
@@ -349,17 +388,33 @@ const Orders = () => {
                                   imageUrl = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDQwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI0MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjRjlGQUZCIiBzdHJva2U9IiNFNUU3RUIiIHN0cm9rZS13aWR0aD0iMiIvPgo8cGF0aCBkPSJNMTYwIDE0MEwyNDAgMjAwTDE2MCAxNDBaIiBzdHJva2U9IiM2MkM0NjIiIHN0cm9rZS13aWR0aD0iMyIgZmlsbD0ibm9uZSIvPgo8Y2lyY2xlIGN4PSIyMDAiIGN5PSIxMjAiIHI9IjEwIiBmaWxsPSIjNjJDNDYyIi8+Cjx0ZXh0IHg9IjIwMCIgeT0iMTcwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTYiIGZpbGw9IiMzNzQxNTEiIHRleHQtYW5jaG9yPSJtaWRkbGUiPlBheW1lbnQgUHJvb2Y8L3RleHQ+Cjx0ZXh0IHg9IjIwMCIgeT0iMTkwIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTIiIGZpbGw9IiM2Nzc0ODAiIHRleHQtYW5jaG9yPSJtaWRkbGUiPk5vIGltYWdlIGF2YWlsYWJsZTwvdGV4dD4KPHR4dCB4PSIyMDAiIHk9IjIxMCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjEwIiBmaWxsPSIjOUI5Q0EwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5DbGljayB0byBjbG9zZTwvdGV4dD4KPC9zdmc+Cg==';
                                 }
                                 
+// Enhanced modal with better UI and loading states
                                 const modal = document.createElement('div');
-                                modal.className = 'fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4';
+                                modal.className = 'fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4 animate-fade-in';
                                 modal.innerHTML = `
-                                  <div class="relative max-w-4xl max-h-full">
-                                    <img src="${imageUrl}" alt="Payment proof" class="max-w-full max-h-full object-contain rounded-lg" />
-                                    <button class="absolute top-2 right-2 bg-white text-black rounded-full p-2 hover:bg-gray-100 min-w-[48px] min-h-[48px] flex items-center justify-center">
-                                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                                      </svg>
-                                    </button>
+                                  <div class="relative max-w-5xl max-h-full bg-white rounded-lg shadow-2xl overflow-hidden">
+                                    <div class="flex items-center justify-between p-4 border-b bg-gray-50">
+                                      <div class="flex items-center space-x-2">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="2">
+                                          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                                          <circle cx="8.5" cy="8.5" r="1.5"/>
+                                          <polyline points="21,15 16,10 5,21"/>
+                                        </svg>
+                                        <h3 class="text-lg font-semibold text-gray-900">Payment Proof - Order #${order.id}</h3>
+                                      </div>
+                                      <button class="close-modal bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full p-2 transition-colors min-w-[40px] min-h-[40px] flex items-center justify-center">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                          <line x1="18" y1="6" x2="6" y2="18"></line>
+                                          <line x1="6" y1="6" x2="18" y2="18"></line>
+                                        </svg>
+                                      </button>
+                                    </div>
+                                    <div class="p-6 max-h-[80vh] overflow-auto">
+                                      <img src="${imageUrl}" alt="Payment proof" class="max-w-full max-h-full object-contain rounded-lg mx-auto shadow-lg" onload="this.classList.add('loaded')" style="min-height: 200px;" />
+                                    </div>
+                                    <div class="p-4 bg-gray-50 border-t text-center">
+                                      <p class="text-sm text-gray-600">Payment Method: <span class="font-medium capitalize">${order.paymentMethod}</span> | Upload Date: ${format(new Date(order.paymentProof?.uploadedAt || order.createdAt), 'MMM dd, yyyy')}</p>
+                                    </div>
                                   </div>
                                 `;
                                 modal.onclick = (e) => {

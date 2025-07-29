@@ -1,6 +1,7 @@
 import ordersData from "../mockData/orders.json";
 import React from "react";
 import { paymentService } from "@/services/api/paymentService";
+import { notificationService } from "@/services/api/notificationService";
 import { productService } from "@/services/api/productService";
 import Error from "@/components/ui/Error";
 class OrderService {
@@ -197,7 +198,14 @@ if (orderData.paymentMethod === 'wallet') {
       }
     }
     
-    this.orders.push(newOrder);
+this.orders.push(newOrder);
+    
+    // Send email/SMS alerts to vendors for new orders
+    try {
+      await notificationService.sendVendorOrderAlert(newOrder);
+    } catch (alertError) {
+      console.warn('Vendor alert notification failed:', alertError);
+    }
     
     // Real-time order sync - broadcast to vendors immediately
     if (typeof window !== 'undefined' && window.webSocketService) {

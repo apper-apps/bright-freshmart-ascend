@@ -134,6 +134,162 @@ class NotificationService {
       newCount: this.counts[category] || 0
     };
   }
+// Enhanced vendor notification system for better order tracking
+  async sendVendorOrderAlert(order) {
+    await this.delay(100);
+    
+    try {
+      // Get vendors for order items
+      const vendorAlerts = this.getVendorsForOrder(order);
+      
+      // Send email/SMS notifications to each vendor
+      for (const vendorAlert of vendorAlerts) {
+        // Email notification
+        await this.sendVendorEmail(vendorAlert);
+        
+        // SMS notification for critical orders
+        if (order.status === 'pending' || order.total > 1000) {
+          await this.sendVendorSMS(vendorAlert);
+        }
+      }
+      
+      return {
+        success: true,
+        alertsSent: vendorAlerts.length,
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      console.error('Vendor alert system error:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+  
+  async sendVendorEmail(vendorAlert) {
+    await this.delay(200);
+    
+    const emailContent = {
+      to: vendorAlert.vendor.email,
+      subject: `🚨 New Order Alert - Order #${vendorAlert.order.id}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="background: linear-gradient(135deg, #dc2626, #ef4444); color: white; padding: 20px; text-align: center;">
+            <h1 style="margin: 0; font-size: 24px;">🚨 New Order Alert</h1>
+            <p style="margin: 10px 0 0 0; font-size: 16px;">Order #${vendorAlert.order.id} requires immediate attention</p>
+          </div>
+          
+          <div style="padding: 20px; background: #fef2f2; border-left: 4px solid #dc2626;">
+            <h2 style="color: #dc2626; margin-top: 0;">Order Details</h2>
+            <p><strong>Customer:</strong> ${vendorAlert.order.deliveryAddress?.name || 'N/A'}</p>
+            <p><strong>Phone:</strong> ${vendorAlert.order.deliveryAddress?.phone || 'N/A'}</p>
+            <p><strong>Total Amount:</strong> Rs. ${vendorAlert.order.total}</p>
+            <p><strong>Payment Method:</strong> ${vendorAlert.order.paymentMethod?.toUpperCase()}</p>
+            <p><strong>Order Time:</strong> ${new Date(vendorAlert.order.createdAt).toLocaleString()}</p>
+          </div>
+          
+          <div style="padding: 20px;">
+            <h3 style="color: #374151;">Your Items:</h3>
+            ${vendorAlert.items.map(item => `
+              <div style="background: #f9fafb; padding: 10px; margin: 5px 0; border-radius: 5px;">
+                <strong>${item.name}</strong> - Qty: ${item.quantity} ${item.unit} × Rs. ${item.price}
+              </div>
+            `).join('')}
+          </div>
+          
+          <div style="background: #dc2626; color: white; padding: 20px; text-align: center;">
+            <p style="margin: 0; font-size: 18px; font-weight: bold;">⏰ Action Required Within 30 Minutes</p>
+            <p style="margin: 10px 0 0 0;">Log in to your vendor portal to confirm availability</p>
+          </div>
+        </div>
+      `
+    };
+    
+    // Mock email sending
+    console.log(`📧 Email sent to ${vendorAlert.vendor.email}:`, emailContent.subject);
+    return { success: true, type: 'email', recipient: vendorAlert.vendor.email };
+  }
+  
+  async sendVendorSMS(vendorAlert) {
+    await this.delay(150);
+    
+    const smsContent = {
+      to: vendorAlert.vendor.phone,
+      message: `🚨 NEW ORDER ALERT! Order #${vendorAlert.order.id} - Rs.${vendorAlert.order.total} - Customer: ${vendorAlert.order.deliveryAddress?.name} - ${vendorAlert.items.length} items assigned to you. RESPOND WITHIN 30 MIN! Login: vendor.freshmart.com`
+    };
+    
+    // Mock SMS sending
+    console.log(`📱 SMS sent to ${vendorAlert.vendor.phone}:`, smsContent.message);
+    return { success: true, type: 'sms', recipient: vendorAlert.vendor.phone };
+  }
+  
+  getVendorsForOrder(order) {
+    // Mock vendor assignment logic - in real app, this would query vendor database
+    const mockVendors = [
+      { id: 1, name: "Fresh Produce Co", email: "orders@freshproduce.com", phone: "+92 300 1111111" },
+      { id: 2, name: "Quality Meats", email: "alerts@qualitymeats.com", phone: "+92 300 2222222" },
+      { id: 3, name: "Dairy Farm Direct", email: "notifications@dairyfarm.com", phone: "+92 300 3333333" }
+    ];
+    
+    return order.items.map(item => {
+      // Simple vendor assignment based on product ID
+      const vendorId = (item.productId % 3) + 1;
+      const vendor = mockVendors.find(v => v.id === vendorId) || mockVendors[0];
+      
+      return {
+        order: order,
+        vendor: vendor,
+        items: [item],
+        urgency: order.status === 'pending' ? 'high' : 'normal',
+        responseDeadline: new Date(Date.now() + 30 * 60 * 1000) // 30 minutes
+      };
+    });
+  }
+  
+  // Get order status colors for better visual tracking
+  getOrderStatusColor(status) {
+    const statusColors = {
+      'pending': { bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-200' },
+      'confirmed': { bg: 'bg-blue-100', text: 'text-blue-800', border: 'border-blue-200' },
+      'verified': { bg: 'bg-green-100', text: 'text-green-800', border: 'border-green-200' },
+      'packed': { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-200' },
+      'shipped': { bg: 'bg-purple-100', text: 'text-purple-800', border: 'border-purple-200' },
+      'delivered': { bg: 'bg-emerald-100', text: 'text-emerald-800', border: 'border-emerald-200' },
+      'payment_pending': { bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-200' },
+      'cancelled': { bg: 'bg-gray-100', text: 'text-gray-800', border: 'border-gray-200' }
+    };
+    
+    return statusColors[status] || statusColors['pending'];
+  }
+  
+  // Enhanced notification for order status changes
+  async notifyOrderStatusChange(orderId, oldStatus, newStatus, additionalData = {}) {
+    await this.delay(100);
+    
+    const statusChangeAlert = {
+      orderId,
+      oldStatus,
+      newStatus,
+      timestamp: new Date().toISOString(),
+      ...additionalData
+    };
+    
+    // Update notification counts based on status change
+    if (newStatus === 'pending') {
+      this.counts.orders += 1;
+    } else if (oldStatus === 'pending' && newStatus !== 'pending') {
+      this.counts.orders = Math.max(0, this.counts.orders - 1);
+    }
+    
+    this.lastUpdate = new Date().toISOString();
+    
+    return {
+      success: true,
+      statusChange: statusChangeAlert,
+      newOrderCount: this.counts.orders
+    };
+  }
 }
 
 export const notificationService = new NotificationService();

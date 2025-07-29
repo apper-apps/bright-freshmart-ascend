@@ -2213,16 +2213,71 @@ const VendorOrdersTab = ({ vendor }) => {
       {/* Orders List */}
       <div className="space-y-4">
         {filteredOrders.map((order) => (
-          <div key={order.id} className="border border-gray-200 rounded-lg overflow-hidden">
-            <div className="bg-gray-50 px-4 py-3 flex items-center justify-between">
+<div key={order.id} className={`border rounded-lg overflow-hidden transition-all duration-200 ${
+            // Color-code orders by status for better visual tracking
+            order.status === 'pending' ? 'border-red-200 bg-red-50 shadow-red-100' :
+            order.status === 'confirmed' || order.verificationStatus === 'verified' ? 'border-green-200 bg-green-50 shadow-green-100' :
+            order.status === 'packed' ? 'border-yellow-200 bg-yellow-50 shadow-yellow-100' :
+            order.status === 'shipped' ? 'border-blue-200 bg-blue-50 shadow-blue-100' :
+            'border-gray-200 bg-white'
+          }`}>
+            <div className={`px-4 py-3 flex items-center justify-between ${
+              order.status === 'pending' ? 'bg-red-100' :
+              order.status === 'confirmed' || order.verificationStatus === 'verified' ? 'bg-green-100' :
+              order.status === 'packed' ? 'bg-yellow-100' :
+              order.status === 'shipped' ? 'bg-blue-100' :
+              'bg-gray-50'
+            }`}>
               <div className="flex items-center space-x-4">
-                <h3 className="font-semibold text-gray-900">Order #{order.id}</h3>
-                <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
+                <div className="flex items-center space-x-2">
+                  {/* Status indicator icon */}
+                  <div className={`w-3 h-3 rounded-full ${
+                    order.status === 'pending' ? 'bg-red-500 animate-pulse' :
+                    order.status === 'confirmed' || order.verificationStatus === 'verified' ? 'bg-green-500' :
+                    order.status === 'packed' ? 'bg-yellow-500' :
+                    order.status === 'shipped' ? 'bg-blue-500' :
+                    'bg-gray-400'
+                  }`}></div>
+                  <h3 className={`font-semibold ${
+                    order.status === 'pending' ? 'text-red-900' :
+                    order.status === 'confirmed' || order.verificationStatus === 'verified' ? 'text-green-900' :
+                    order.status === 'packed' ? 'text-yellow-900' :
+                    order.status === 'shipped' ? 'text-blue-900' :
+                    'text-gray-900'
+                  }`}>Order #{order.id}</h3>
+                  
+                  {/* Priority badge for pending orders */}
+                  {order.status === 'pending' && (
+                    <span className="px-2 py-1 bg-red-500 text-white text-xs font-bold rounded-full animate-pulse flex items-center">
+                      <ApperIcon name="AlertTriangle" size={10} className="mr-1" />
+                      URGENT
+                    </span>
+                  )}
+                </div>
+                
+                <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                  order.status === 'pending' ? 'bg-red-200 text-red-800' :
+                  order.status === 'confirmed' || order.verificationStatus === 'verified' ? 'bg-green-200 text-green-800' :
+                  'bg-blue-200 text-blue-800'
+                }`}>
                   {order.deliveryAddress?.name || 'N/A'}
                 </span>
               </div>
-              <div className="text-sm text-gray-600">
-                {new Date(order.createdAt).toLocaleDateString()}
+              <div className="text-sm text-gray-600 flex items-center space-x-2">
+                <span>{new Date(order.createdAt).toLocaleDateString()}</span>
+                {/* Response deadline for pending orders */}
+                {order.status === 'pending' && (
+                  <span className="text-xs text-red-600 font-medium bg-red-100 px-2 py-1 rounded">
+                    <ApperIcon name="Clock" size={10} className="mr-1 inline" />
+                    {(() => {
+                      const deadline = new Date(new Date(order.createdAt).getTime() + 30 * 60 * 1000);
+                      const now = new Date();
+                      const timeLeft = deadline - now;
+                      const minutesLeft = Math.max(0, Math.floor(timeLeft / (1000 * 60)));
+                      return minutesLeft > 0 ? `${minutesLeft}m left` : 'OVERDUE';
+                    })()}
+                  </span>
+                )}
               </div>
             </div>
             
@@ -2232,7 +2287,11 @@ const VendorOrdersTab = ({ vendor }) => {
                   // Filter items assigned to this vendor (simplified logic)
                   item.productId % 3 + 1 === vendor.Id
                 ).map((item) => (
-                  <div key={item.productId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div key={item.productId} className={`flex items-center justify-between p-3 rounded-lg transition-colors ${
+                    getAvailabilityStatus(order, item.productId) === 'pending' ? 'bg-red-50 border border-red-100' :
+                    getAvailabilityStatus(order, item.productId) === 'available' ? 'bg-green-50 border border-green-100' :
+                    'bg-gray-50 border border-gray-100'
+                  }`}>
                     <div className="flex-1">
                       <h4 className="font-medium text-gray-900">{item.name}</h4>
                       <p className="text-sm text-gray-600">
@@ -2245,13 +2304,14 @@ const VendorOrdersTab = ({ vendor }) => {
                         {formatCurrency(item.price * item.quantity)}
                       </span>
                       
-                      {/* Availability Status & Actions */}
+                      {/* Enhanced Availability Status & Actions with colors */}
                       <div className="flex items-center space-x-2">
                         {getAvailabilityStatus(order, item.productId) === 'pending' ? (
                           <div className="flex space-x-2">
                             <Button
                               size="sm"
                               variant="primary"
+                              className="bg-green-600 hover:bg-green-700 text-white"
                               onClick={() => handleAvailabilityUpdate(order.id, item.productId, true)}
                             >
                               <ApperIcon name="CheckCircle" size={14} className="mr-1" />
@@ -2259,7 +2319,8 @@ const VendorOrdersTab = ({ vendor }) => {
                             </Button>
                             <Button
                               size="sm"
-                              variant="outline"
+                              variant="outline" 
+                              className="border-red-300 text-red-600 hover:bg-red-50"
                               onClick={() => handleAvailabilityUpdate(order.id, item.productId, false)}
                             >
                               <ApperIcon name="XCircle" size={14} className="mr-1" />
@@ -2270,8 +2331,8 @@ const VendorOrdersTab = ({ vendor }) => {
                           <div className="flex items-center space-x-2">
                             <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                               getAvailabilityStatus(order, item.productId) === 'available' 
-                                ? 'bg-green-100 text-green-800' 
-                                : 'bg-red-100 text-red-800'
+                                ? 'bg-green-100 text-green-800 border border-green-200' 
+                                : 'bg-red-100 text-red-800 border border-red-200'
                             }`}>
                               <ApperIcon 
                                 name={getAvailabilityStatus(order, item.productId) === 'available' ? 'CheckCircle' : 'XCircle'} 
@@ -2283,6 +2344,7 @@ const VendorOrdersTab = ({ vendor }) => {
                             <Button
                               size="sm"
                               variant="ghost"
+                              className="hover:bg-gray-100"
                               onClick={() => {
                                 const currentStatus = getAvailabilityStatus(order, item.productId);
                                 handleAvailabilityUpdate(order.id, item.productId, currentStatus !== 'available');
