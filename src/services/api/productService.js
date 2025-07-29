@@ -5,7 +5,8 @@ class ProductService {
     this.products = [...productsData];
   }
 
-async getAll(userRole = 'customer') {
+// Main method for fetching all products
+  async getAll(userRole = 'customer') {
     try {
       await this.delay();
       const products = [...this.products];
@@ -38,6 +39,11 @@ async getAll(userRole = 'customer') {
         throw new Error('Failed to load products. Please try again later.');
       }
     }
+  }
+
+  // Alias method for backward compatibility - matches expected API
+  async getAllProducts(userRole = 'customer') {
+    return this.getAll(userRole);
   }
 
 async getById(id, userRole = 'customer') {
