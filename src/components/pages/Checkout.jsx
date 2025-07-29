@@ -15,7 +15,7 @@ import Account from "@/components/pages/Account";
 import Input from "@/components/atoms/Input";
 import Button from "@/components/atoms/Button";
 import { clearCart } from "@/store/cartSlice";
-import formatCurrency from "@/utils/currency";
+import { formatCurrency } from "@/utils/currency";
 
 function Checkout() {
   const navigate = useNavigate();
@@ -1160,10 +1160,11 @@ paymentResult.transactionId = transactionId;
                             )}
                           </div>
                         </div>
-                      </div>
-                    ))}
 </div>
+                    ))}
+                  </div>
                 )}
+                
                 {/* Payment Details for Non-Cash Methods */}
                 {paymentMethod !== 'cash' && (
                   <div className="mt-4 space-y-4">
@@ -1205,7 +1206,7 @@ paymentResult.transactionId = transactionId;
                             <span className="text-xs text-gray-400">PNG, JPG, WebP up to 5MB</span>
                           </label>
                         </div>
-)}
+                      )}
 
                       {uploadLoading && (
                         <div className="border-2 border-dashed border-blue-300 bg-blue-50 rounded-lg p-6 text-center">
@@ -1234,10 +1235,9 @@ paymentResult.transactionId = transactionId;
                             )}
                           </div>
                         </div>
-</div>
                       )}
 
-{(errors.paymentProof || lastUploadError) && (
+                      {(errors.paymentProof || lastUploadError) && (
                         <div className="mt-2 bg-red-50 border border-red-200 rounded-lg p-4 upload-error-animate">
                           <div className="flex items-start space-x-2">
                             <ApperIcon name="AlertCircle" size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
@@ -1360,7 +1360,7 @@ paymentResult.transactionId = transactionId;
                             <li>• Copy the transaction ID and enter it in the field above</li>
                             <li>• Take a clear screenshot of the payment confirmation</li>
                             <li>• Upload the screenshot for verification</li>
-<li>• Your order will be processed after payment verification</li>
+                            <li>• Your order will be processed after payment verification</li>
                           </ul>
                         </div>
                       </div>
@@ -1368,7 +1368,8 @@ paymentResult.transactionId = transactionId;
                   </div>
                 )}
               </div>
-{/* Submit Button */}
+
+              {/* Submit Button */}
               <div className="card p-6">
                 <div className="space-y-3">
                   {/* Progress indicator */}
