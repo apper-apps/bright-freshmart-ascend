@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "react-toastify";
-import OrderStatusTimeline from "@/components/molecules/OrderStatusTimeline";
 import { orderService } from "@/services/api/orderService";
+import { webSocketService } from "@/services/api/websocketService";
 import { productService } from "@/services/api/productService";
 import { vendorService } from "@/services/api/vendorService";
 import { productUnitService } from "@/services/api/productUnitService";
 import ApperIcon from "@/components/ApperIcon";
+import OrderStatusTimeline from "@/components/molecules/OrderStatusTimeline";
 import Loading from "@/components/ui/Loading";
 import Error from "@/components/ui/Error";
 import Orders from "@/components/pages/Orders";
@@ -196,12 +197,12 @@ const VendorDashboard = ({ vendor, onLogout, onProfileUpdate }) => {
   }, [vendor]);
 
   const loadVendorData = async () => {
-    if (!vendor) return;
+if (!vendor) return;
     
-    setLoading(true);
+setLoading(true);
 setError(null);
-    try {
-      const [vendorProducts, vendorStats] = await Promise.all([
+try {
+const [vendorProducts, vendorStats] = await Promise.all([
         productService.getVendorProducts(vendor.Id),
         productService.getVendorStats(vendor.Id)
       ]);
@@ -358,6 +359,7 @@ const tabs = [
             </div>
             
 <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center">
                 <div className="p-2 bg-yellow-100 rounded-lg">
                   <ApperIcon name="DollarSign" size={24} className="text-yellow-600" />
                 </div>
@@ -367,7 +369,6 @@ const tabs = [
                 </div>
               </div>
             </div>
-            
             <div className="bg-white rounded-lg shadow p-6">
               <div className="flex items-center">
                 <div className="p-2 bg-red-100 rounded-lg">
@@ -405,7 +406,7 @@ const tabs = [
                   )}
                 </button>
               ))}
-</nav>
+            </nav>
           </div>
           <div className="p-6">
             {loading ? (
@@ -459,7 +460,7 @@ const tabs = [
                     onProfileUpdate={onProfileUpdate}
                   />
                 )}
-</>
+              </>
             )}
           </div>
         </div>
@@ -739,7 +740,7 @@ const EditPriceModal = ({ product, vendor, onSave, onClose }) => {
     setSubmittingApproval(true);
     try {
       // Simulate submission for approval
-const approvalData = {
+      const approvalData = {
         productId: product.id,
         vendorId: vendor.Id,
         changes: formData,
@@ -757,74 +758,7 @@ const approvalData = {
       setSubmittingApproval(false);
     }
   };
-function VendorOrdersTab({ vendor, showCompleted = false }) {
-  const [vendorOrders, setVendorOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [expandedOrders, setExpandedOrders] = useState(new Set());
 
-  useEffect(() => {
-    loadVendorOrders();
-  }, [vendor.id, searchTerm, statusFilter, showCompleted]);
-
-  async function loadVendorOrders() {
-    try {
-      setLoading(true);
-      const vendorOrders = await orderService.getVendorOrders(vendor.id);
-      
-      // Filter by completion status
-      const statusFilteredOrders = vendorOrders.filter(order => {
-        const completedStatuses = ['delivered', 'cancelled'];
-        const isCompleted = completedStatuses.includes(order.status);
-        return showCompleted ? isCompleted : !isCompleted;
-      });
-      
-      const filteredOrders = statusFilteredOrders.filter(order => {
-        const matchesSearch = searchTerm === '' || 
-          order.id.toString().includes(searchTerm) ||
-          order.deliveryAddress?.name.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
-return matchesSearch && matchesStatus;
-      });
-      
-      setVendorOrders(filteredOrders);
-    } catch (error) {
-      console.error('Error loading vendor orders:', error);
-      toast.error('Failed to load orders');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const toggleOrderExpansion = (orderId) => {
-    const newExpanded = new Set(expandedOrders);
-    if (newExpanded.has(orderId)) {
-      newExpanded.delete(orderId);
-    } else {
-      newExpanded.add(orderId);
-    }
-    setExpandedOrders(newExpanded);
-  };
-
-  async function handleAvailabilityUpdate(orderId, productId, available, notes = '') {
-    try {
-      const key = `${orderId}-${productId}`;
-      const availability = available ? 'available' : 'unavailable';
-      
-      await orderService.updateVendorAvailability(orderId, vendor.id, productId, {
-        availability,
-        notes,
-        responseTimestamp: new Date().toISOString()
-      });
-      
-      toast.success(`Product marked as ${availability}`);
-      loadVendorOrders();
-    } catch (error) {
-      console.error('Error updating availability:', error);
-toast.error('Failed to update availability');
-    }
-  }
   const calculatePriceChange = () => {
     if (product.price > 0) {
       return ((formData.price - product.price) / product.price) * 100;
@@ -835,15 +769,11 @@ toast.error('Failed to update availability');
   const hasChanges = formData.price !== product.price || 
                     formData.stock !== product.stock || 
                     formData.purchasePrice !== (product.purchasePrice || 0);
-const margin = formData.purchasePrice > 0 
+
+  const margin = formData.purchasePrice > 0 
     ? ((formData.price - formData.purchasePrice) / formData.purchasePrice) * 100 
     : 0;
-
-  const hasChanges = formData.price !== product.price || 
-                    formData.stock !== product.stock || 
-                    formData.purchasePrice !== (product.purchasePrice || 0);
-
-  return (
+return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg max-w-md w-full p-6">
         <div className="flex justify-between items-center mb-6">
@@ -859,7 +789,7 @@ const margin = formData.purchasePrice > 0
         </div>
 
         <div className="space-y-4">
-{/* Price Input */}
+          {/* Price Input */}
           <div>
             <Input
               type="number"
@@ -913,7 +843,7 @@ const margin = formData.purchasePrice > 0
 
               {/* Price Change */}
               {formData.price !== product.price && (
-                <div className="flex justify-between items-center">
+<div className="flex justify-between items-center">
                   <span className="text-sm font-medium text-gray-700">
                     Price Change:
                   </span>
@@ -1169,7 +1099,7 @@ function VendorOrdersTab({ vendor, showCompleted = false }) {
             );
             const isExpanded = expandedOrders.has(order.id);
             
-return (
+            return (
               <div key={order.id} className="bg-white rounded-xl shadow-card border border-gray-200 overflow-hidden">
                 <div className="p-6">
                   <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
@@ -1199,7 +1129,7 @@ return (
                         <div className="flex items-center gap-1">
                           <ApperIcon name="Phone" size={16} />
                           <span>{order.deliveryAddress?.phone}</span>
-</div>
+                        </div>
                       </div>
                     </div>
                     
@@ -1240,7 +1170,7 @@ return (
                   {/* Vendor Items Section */}
                   <div className="border-t pt-6">
                     <h4 className="font-medium text-gray-800 mb-4 flex items-center">
-<ApperIcon name="Package" size={18} className="mr-2 text-blue-600" />
+                      <ApperIcon name="Package" size={18} className="mr-2 text-blue-600" />
                       Your Items in this Order
                     </h4>
                     
@@ -1274,7 +1204,7 @@ return (
   );
 }
 
-// Calculate totals for vendor products (moved to proper location)
+// Calculate totals for vendor products
 const calculateTotals = (products, fields) => {
   if (!products || products.length === 0) {
     return {
@@ -1352,201 +1282,6 @@ const format = (date, formatString) => {
     });
   }
   return d.toLocaleDateString();
-};
-
-// Edit Price Modal Component (fixed)
-const EditPriceModal = ({ product, vendor, onSave, onClose }) => {
-  const [formData, setFormData] = useState({
-    price: product.price,
-    purchasePrice: product.purchasePrice || 0,
-    stock: product.stock || 0
-  });
-  const [loading, setLoading] = useState(false);
-  const [submittingApproval, setSubmittingApproval] = useState(false);
-  const [errors, setErrors] = useState({});
-  const [approvalStatus, setApprovalStatus] = useState(null);
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    const numericValue = name === 'stock' ? parseInt(value) || 0 : parseFloat(value) || 0;
-    
-    setFormData(prev => ({
-      ...prev,
-      [name]: numericValue
-    }));
-    
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: null
-      }));
-    }
-  };
-
-  const validateForm = () => {
-    const newErrors = {};
-    
-    // Price validation
-    if (formData.price <= 0) {
-      newErrors.price = 'Price must be greater than 0';
-    }
-    
-    // Purchase price validation
-    if (formData.purchasePrice < 0) {
-      newErrors.purchasePrice = 'Purchase price cannot be negative';
-    }
-    
-    // Stock validation
-    if (formData.stock < 0) {
-      newErrors.stock = 'Stock cannot be negative';
-    }
-    
-    // Selling price > buying price validation
-    if (formData.purchasePrice > 0 && formData.price <= formData.purchasePrice) {
-      newErrors.price = 'Selling price must be greater than purchase price';
-    }
-    
-    // Margin validation
-    const margin = formData.purchasePrice > 0 
-      ? ((formData.price - formData.purchasePrice) / formData.purchasePrice) * 100 
-      : 0;
-    
-    if (margin < (product.vendorInfo?.minMargin || 5)) {
-      newErrors.price = `Minimum margin required: ${product.vendorInfo?.minMargin || 5}%`;
-    }
-    
-    // Max 20% price change validation
-    const priceChangePercent = Math.abs(calculatePriceChange(formData, product));
-    if (priceChangePercent > 20) {
-      newErrors.price = 'Maximum 20% price change allowed per update';
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleDirectSave = async (e) => {
-    e.preventDefault();
-    
-    if (!validateForm()) {
-      return;
-    }
-    
-    setLoading(true);
-    try {
-      await onSave(product.id, formData);
-    } catch (error) {
-      // Error handled in onSave
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSubmitForApproval = async () => {
-    if (!validateForm()) {
-      return;
-    }
-    
-    setSubmittingApproval(true);
-    try {
-                    : 'text-red-600'
-                }`}>
-                  {calculatePriceChange() > 0 ? '+' : ''}{calculatePriceChange().toFixed(1)}%
-                </span>
-              </div>
-            )}
-
-            {/* Stock Change */}
-            {formData.stock !== product.stock && (
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-gray-700">
-                  Stock Change:
-                </span>
-                <span className="text-sm font-semibold text-blue-600">
-                  {formData.stock - product.stock > 0 ? '+' : ''}{formData.stock - product.stock} units
-                </span>
-              </div>
-            )}
-
-            <div className="text-xs text-gray-500 pt-2 border-t">
-              Min margin: {product.vendorInfo?.minMargin || 5}% • 
-              Max price change: 20% • 
-              Profit: {formData.purchasePrice > 0 && formData.price > formData.purchasePrice ? 
-                formatCurrency(formData.price - formData.purchasePrice) : 'Rs. 0'}
-            </div>
-          </div>
-          
-          {/* Action Buttons */}
-          <div className="flex flex-col space-y-3 pt-4">
-            {/* Submit for Approval Button */}
-            <Button
-              type="button"
-              onClick={handleSubmitForApproval}
-              variant="primary"
-              className="w-full"
-              disabled={!hasChanges || submittingApproval || Object.keys(errors).length > 0}
-            >
-              {submittingApproval ? (
-                <>
-                  <ApperIcon name="Loader2" size={16} className="animate-spin mr-2" />
-                  Submitting for Approval...
-                </>
-              ) : (
-                <>
-                  <ApperIcon name="Send" size={16} className="mr-2" />
-                  Submit for Approval
-                </>
-              )}
-            </Button>
-
-            {/* Direct Save and Cancel buttons */}
-            <div className="flex space-x-3">
-              <Button
-                type="button"
-                onClick={onClose}
-                variant="outline"
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                onClick={handleDirectSave}
-                variant="ghost"
-                className="flex-1"
-                disabled={!hasChanges || loading || Object.keys(errors).length > 0}
-              >
-                {loading ? (
-                  <>
-                    <ApperIcon name="Loader2" size={16} className="animate-spin mr-2" />
-                    Saving...
-                  </>
-                ) : (
-                  'Save Direct'
-                )}
-              </Button>
-            </div>
-          </div>
-
-          {/* Validation Summary */}
-          {Object.keys(errors).length > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-              <div className="flex items-center mb-2">
-                <ApperIcon name="AlertCircle" size={16} className="text-red-600 mr-2" />
-                <span className="text-sm font-medium text-red-800">Please fix the following issues:</span>
-              </div>
-              <ul className="text-sm text-red-700 space-y-1">
-                {Object.values(errors).map((error, index) => (
-                  <li key={index}>• {error}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
 };
 
 // Vendor Profile Tab Component
@@ -2188,7 +1923,6 @@ const VendorPackingTab = ({ vendor }) => {
   const handleStartPacking = (order) => {
     setSelectedOrder(order);
     setPackingData({
-setSelectedOrder(order);
     setPackingData({
       orderId: order.id,
       items: order.items?.filter(item => (item.productId % 3 + 1) === vendor.Id).map(item => {
@@ -2256,7 +1990,6 @@ const handleItemVerification = (itemIndex, field, value) => {
 const handlePackingComplete = async () => {
     // Validate that all items are verified or properly skipped
 
-const handlePackingComplete = async () => {
     // Validate that all items are verified or properly skipped
     const invalidItems = packingData.items.filter(item => {
       if (!item.verified) return true;
@@ -2519,7 +2252,9 @@ const handlePackingComplete = async () => {
                   ))}
                 </div>
               </div>
-</div>
+              
+              {/* Photo Capture - Optional */}
+              <div>
               
               {/* Photo Capture - Optional */}
                 <div className="flex items-center justify-between mb-3">
@@ -2625,7 +2360,8 @@ const handlePackingComplete = async () => {
                 variant="outline"
               >
                 Cancel
-</Button>
+Cancel
+              </Button>
               <Button
                 onClick={handlePackingComplete}
                 variant="primary"
