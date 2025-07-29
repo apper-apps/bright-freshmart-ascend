@@ -16,7 +16,7 @@ import Input from "@/components/atoms/Input";
 import Button from "@/components/atoms/Button";
 import { clearCart } from "@/store/cartSlice";
 import formatCurrency from "@/utils/currency";
-function Checkout() {
+
 function Checkout() {
   const navigate = useNavigate();
   const { cart, clearCart: clearCartHook } = useCart();
