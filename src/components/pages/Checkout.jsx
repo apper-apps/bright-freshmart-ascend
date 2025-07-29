@@ -16,7 +16,7 @@ import Account from "@/components/pages/Account";
 import Input from "@/components/atoms/Input";
 import Button from "@/components/atoms/Button";
 import { clearCart } from "@/store/cartSlice";
-import { formatCurrency } from "@/utils/currency";
+import formatCurrency from "@/utils/currency";
 function Checkout() {
   const navigate = useNavigate();
   const { cart, clearCart: clearCartHook } = useCart();
@@ -264,89 +264,119 @@ async function handleFileUpload(e, isRetry = false) {
       }
 
       // Enhanced file validation with better error messages
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+// Enhanced file validation with better error messages and format support
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp', 'application/pdf'];
       const fileType = file.type.toLowerCase();
+      const fileName = file.name.toLowerCase();
       
       // Check for HEIC files and offer conversion guidance
-      if (file.name.toLowerCase().includes('.heic') || file.name.toLowerCase().includes('.heif')) {
+      if (fileName.includes('.heic') || fileName.includes('.heif')) {
         setLastUploadError({
           type: 'unsupported_format',
           message: 'HEIC format not supported',
-          guidance: 'Please convert to JPG or PNG using your phone\'s photo app or an online converter'
+          guidance: 'Please convert to JPG or PNG using your phone\'s photo app or an online converter. Most phones can save photos in JPG format in camera settings.'
         });
-        toast.error('HEIC format not supported. Please convert to JPG or PNG first.');
+        toast.error('HEIC format not supported. Please convert to JPG/PNG first.');
         setUploadLoading(false);
         setShowAlternativeOptions(true);
         return;
       }
       
+      // Check for other unsupported formats with specific guidance
       if (!allowedTypes.includes(fileType)) {
+        let errorMessage = 'Invalid file format';
+        let guidance = 'Only JPG, PNG, WebP images and PDF receipts are supported';
+        
+        if (fileType.includes('bmp') || fileType.includes('gif') || fileType.includes('tiff')) {
+          errorMessage = 'Image format not optimized for upload';
+          guidance = 'Please save your image as JPG or PNG format. Most image editors can convert to these formats.';
+        } else if (fileType.includes('svg')) {
+          errorMessage = 'Vector graphics not supported';
+          guidance = 'Please convert to JPG or PNG format, or take a screenshot of your payment receipt.';
+        } else if (fileType.includes('word') || fileType.includes('doc')) {
+          errorMessage = 'Document format not supported';
+          guidance = 'Please export your document as PDF or take a screenshot and save as JPG/PNG.';
+        }
+        
         setLastUploadError({
           type: 'invalid_format',
-          message: 'Invalid file format',
-          guidance: 'Only JPG, PNG, and WebP images are supported'
+          message: errorMessage,
+          guidance: guidance
         });
-        toast.error('Please upload a JPG, PNG, or WebP image file');
+        toast.error(`${errorMessage}. Please use JPG, PNG, WebP, or PDF format.`);
         setUploadLoading(false);
         setShowAlternativeOptions(true);
         return;
-      }
 
       setUploadProgress(20);
 
       // Enhanced file size validation with progressive limits
-      if (file.size > 15 * 1024 * 1024) { // 15MB absolute limit
+// Enhanced file size validation with format-specific limits
+      const maxSizeForImages = 15 * 1024 * 1024; // 15MB for images
+      const maxSizeForPDF = 10 * 1024 * 1024; // 10MB for PDFs
+      const maxSize = fileType === 'application/pdf' ? maxSizeForPDF : maxSizeForImages;
+      
+      if (file.size > maxSize) {
+        const maxSizeMB = fileType === 'application/pdf' ? '10MB' : '15MB';
         setLastUploadError({
           type: 'file_too_large',
           message: 'File too large',
-          guidance: 'Maximum file size is 15MB. Please resize your image or take a new photo'
+          guidance: `Maximum file size is ${maxSizeMB}. ${fileType === 'application/pdf' ? 'Try compressing your PDF or export at lower quality.' : 'Please resize your image, reduce quality, or take a new photo with lower resolution.'}`
         });
-        toast.error('File is too large. Maximum size is 15MB.');
+        toast.error(`File is too large. Maximum size is ${maxSizeMB}.`);
         setUploadLoading(false);
         setShowAlternativeOptions(true);
         return;
       }
 
-      // Check file size and compress if needed
+// Handle compression for images only (skip PDFs)
       let processedFile = file;
-      if (file.size > 3 * 1024 * 1024) { // 3MB threshold for compression
+      if (fileType !== 'application/pdf' && file.size > 3 * 1024 * 1024) { // 3MB threshold for compression
         setIsCompressing(true);
-        toast.info('Large file detected. Compressing image...');
+        toast.info('Large image detected. Optimizing for faster upload...');
         setUploadProgress(40);
         
         try {
           processedFile = await compressImage(file);
           const originalSize = (file.size / 1024 / 1024).toFixed(1);
           const compressedSize = (processedFile.size / 1024 / 1024).toFixed(1);
-          toast.success(`Image compressed from ${originalSize}MB to ${compressedSize}MB`);
+          toast.success(`✅ Image optimized: ${originalSize}MB → ${compressedSize}MB`);
         } catch (compressionError) {
           console.warn('Compression failed, using original file:', compressionError);
           
           // If compression fails but file is still under 8MB, proceed
           if (file.size <= 8 * 1024 * 1024) {
-            toast.warn('Could not compress image, using original file');
+            toast.warn('Could not optimize image, using original file');
             processedFile = file;
           } else {
             setLastUploadError({
               type: 'compression_failed',
-              message: 'Image compression failed',
-              guidance: 'Please resize your image manually or try a different photo'
+              message: 'Image optimization failed',
+              guidance: 'Please resize your image manually using your phone\'s photo editor or try taking a new photo at lower resolution.'
             });
             throw new Error('Compression failed and file too large');
           }
         }
         
         setIsCompressing(false);
+      } else if (fileType === 'application/pdf') {
+        // For PDFs, just provide feedback about processing
+        toast.info('Processing PDF receipt...');
+        setUploadProgress(50);
       }
 
-      // Final size check after compression
-      if (processedFile.size > 8 * 1024 * 1024) {
+// Final size check after compression with format-specific limits
+      const finalMaxSize = fileType === 'application/pdf' ? 10 * 1024 * 1024 : 8 * 1024 * 1024;
+      if (processedFile.size > finalMaxSize) {
+        const finalMaxSizeMB = fileType === 'application/pdf' ? '10MB' : '8MB';
         setLastUploadError({
           type: 'size_after_compression',
-          message: 'File still too large after compression',
-          guidance: 'Please take a new photo or resize your image'
+          message: `File still too large after processing`,
+          guidance: fileType === 'application/pdf' 
+            ? 'Please compress your PDF or export at lower quality from your banking app.'
+            : 'Please take a new photo with lower resolution, or use your phone\'s photo editor to reduce file size.'
         });
-        toast.error('File size must be under 8MB. Please resize your image.');
+        toast.error(`File size must be under ${finalMaxSizeMB}. Please reduce file size.`);
         setUploadLoading(false);
         setShowAlternativeOptions(true);
         return;
@@ -372,10 +402,11 @@ async function handleFileUpload(e, isRetry = false) {
           progressData.uploadSuccess = true;
           localStorage.setItem('checkout-progress', JSON.stringify(progressData));
           
-          const savings = file.size !== processedFile.size 
-            ? ` (compressed from ${(file.size / 1024 / 1024).toFixed(1)}MB)`
+const savings = file.size !== processedFile.size 
+            ? ` (optimized from ${(file.size / 1024 / 1024).toFixed(1)}MB)`
             : '';
-          toast.success(`Payment proof uploaded successfully${savings}`);
+          const fileTypeText = fileType === 'application/pdf' ? '📄 PDF receipt' : '📸 Payment proof';
+          toast.success(`✅ ${fileTypeText} uploaded successfully${savings}`);
         } catch (previewError) {
           throw new Error('Failed to create image preview');
         }
@@ -405,7 +436,7 @@ async function handleFileUpload(e, isRetry = false) {
       const currentAttempts = uploadAttempts + 1;
       setUploadAttempts(currentAttempts);
       
-      // Enhanced error classification and user guidance
+// Enhanced error classification and user guidance
       let errorMessage = 'Upload failed. Please try again.';
       let shouldShowAlternatives = false;
       let errorDetails = null;
@@ -415,31 +446,39 @@ async function handleFileUpload(e, isRetry = false) {
         errorDetails = {
           type: 'network_error',
           message: 'Network connection issue',
-          guidance: 'Check your internet connection or try connecting to a different network'
+          guidance: 'Check your internet connection, try switching between WiFi and mobile data, or move to an area with better signal strength.'
         };
         shouldShowAlternatives = currentAttempts >= 2;
       } else if (error.message.includes('compression') || error.message.includes('processing')) {
-        errorMessage = 'Image processing failed. Please try a different image.';
+        errorMessage = 'File processing failed. Please try a different approach.';
         errorDetails = {
           type: 'processing_error',
-          message: 'Image processing failed',
-          guidance: 'Try taking a new photo or using a different image'
+          message: 'File processing failed',
+          guidance: 'Try: 1) Taking a new screenshot 2) Saving in different format (JPG/PNG) 3) Using a different device or app to capture the receipt.'
         };
         shouldShowAlternatives = true;
       } else if (error.message.includes('memory') || error.message.includes('resource')) {
-        errorMessage = 'Device memory issue. Please try a smaller image.';
+        errorMessage = 'Device memory issue. Please free up space and try again.';
         errorDetails = {
           type: 'memory_error',
           message: 'Insufficient device memory',
-          guidance: 'Close other apps and try again, or use a smaller image'
+          guidance: 'Close other apps, restart your browser, or try uploading from a different device with more available memory.'
         };
         shouldShowAlternatives = true;
+      } else if (error.message.includes('timeout') || error.message.includes('deadline')) {
+        errorMessage = 'Upload timed out. Please try again with a smaller file.';
+        errorDetails = {
+          type: 'timeout_error',
+          message: 'Upload timeout',
+          guidance: 'Try compressing your image first, or use a faster internet connection. Large files may need more time to upload.'
+        };
+        shouldShowAlternatives = currentAttempts >= 2;
       } else {
-        errorMessage = 'Upload failed. Please try again or contact support.';
+        errorMessage = 'Upload failed. Multiple solutions available.';
         errorDetails = {
           type: 'unknown_error',
           message: 'Unknown upload error',
-          guidance: 'Try again in a few moments or contact support for assistance'
+          guidance: 'Try: 1) Refreshing the page 2) Using a different browser 3) Contacting support via chat for immediate assistance.'
         };
         shouldShowAlternatives = currentAttempts >= 1;
       }
@@ -1576,7 +1615,7 @@ paymentResult.transactionId = transactionId;
                               <span className="text-primary font-medium">Click to upload</span>
                               <span className="text-gray-500"> or drag and drop</span>
                             </div>
-                            <span className="text-xs text-gray-400">PNG, JPG, WebP up to 5MB</span>
+<span className="text-xs text-gray-400">JPG, PNG, PDF, WebP up to 15MB</span>
                           </label>
                         </div>
                       )}
@@ -1614,7 +1653,7 @@ paymentResult.transactionId = transactionId;
                         </div>
                       )}
 
-                      {(errors.paymentProof || lastUploadError) && (
+{(errors.paymentProof || lastUploadError) && (
                         <div className="mt-2 bg-red-50 border border-red-200 rounded-lg p-4 upload-error-animate">
                           <div className="flex items-start space-x-2">
                             <ApperIcon name="AlertCircle" size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
@@ -1623,9 +1662,10 @@ paymentResult.transactionId = transactionId;
                                 {lastUploadError?.message || errors.paymentProof}
                               </p>
                               {lastUploadError?.guidance && (
-                                <p className="text-xs text-red-600 mt-1">
-                                  {lastUploadError.guidance}
-                                </p>
+                                <div className="mt-2 p-2 bg-red-100 border border-red-200 rounded text-xs text-red-700">
+                                  <p className="font-medium">💡 How to fix this:</p>
+                                  <p>{lastUploadError.guidance}</p>
+                                </div>
                               )}
                               
                               <div className="mt-3 flex flex-wrap gap-2">
@@ -1664,7 +1704,7 @@ paymentResult.transactionId = transactionId;
                                       className="text-blue-600 border-blue-300 hover:bg-blue-50"
                                     >
                                       <ApperIcon name="Mail" size={14} className="mr-1" />
-                                      Email Support
+                                      Email Proof
                                     </Button>
                                     <Button
                                       type="button"
@@ -1685,8 +1725,13 @@ paymentResult.transactionId = transactionId;
                                   <div className="flex items-start space-x-2">
                                     <ApperIcon name="Info" size={16} className="text-yellow-600 flex-shrink-0 mt-0.5" />
                                     <div className="text-xs text-yellow-800">
-                                      <p className="font-medium mb-1">Having trouble uploading?</p>
-                                      <p>You can send your payment proof via email or WhatsApp. We'll process your order manually and reserve it for 1 hour.</p>
+                                      <p className="font-medium mb-1">🚀 Alternative Upload Options</p>
+                                      <p>Having trouble? Send your payment proof via email or WhatsApp. We'll process your order manually and hold your items for 1 hour while we verify.</p>
+                                      <div className="mt-2 text-xs text-yellow-700">
+                                        <p>✓ Email: payments@freshmart.pk</p>
+                                        <p>✓ WhatsApp: +92 300 123 4567</p>
+                                        <p>✓ Chat support available now</p>
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
