@@ -15,7 +15,7 @@ import Account from "@/components/pages/Account";
 import Input from "@/components/atoms/Input";
 import Button from "@/components/atoms/Button";
 import { clearCart } from "@/store/cartSlice";
-import { formatCurrency } from "@/utils/currency";
+import formatCurrency from "@/utils/currency";
 
 function Checkout() {
   const navigate = useNavigate();
@@ -1237,8 +1237,9 @@ paymentResult.transactionId = transactionId;
 </div>
                       )}
 
-                      {(errors.paymentProof || lastUploadError) && (
+{(errors.paymentProof || lastUploadError) && (
                         <div className="mt-2 bg-red-50 border border-red-200 rounded-lg p-4 upload-error-animate">
+                          <div className="flex items-start space-x-2">
                             <ApperIcon name="AlertCircle" size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
                             <div className="flex-1">
                               <p className="text-sm font-medium text-red-800">
