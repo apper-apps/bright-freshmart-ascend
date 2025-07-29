@@ -13,8 +13,8 @@ import ChatWidget from "@/components/molecules/ChatWidget";
 import Loading from "@/components/ui/Loading";
 import Error from "@/components/ui/Error";
 import Account from "@/components/pages/Account";
-import { Input } from "@/components/atoms/Input";
-import { Button } from "@/components/atoms/Button";
+import Input from "@/components/atoms/Input";
+import Button from "@/components/atoms/Button";
 import { clearCart } from "@/store/cartSlice";
 import { formatCurrency } from "@/utils/currency";
 function Checkout() {
@@ -1262,17 +1262,15 @@ paymentResult.transactionId = transactionId;
                   </ul>
                 </div>
               </div>
+</div>
             </div>
           </div>
         )}
-</div>
 
-        <div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Order Summary */}
           <div className="order-2 lg:order-1">
             <div className="card p-6 mb-6">
-              <h2 className="text-xl font-semibold mb-4">Order Summary</h2>
               <div className="space-y-4">
                 {cart.map(item => (
                   <div key={item.id} className="flex items-center justify-between py-2 border-b">
