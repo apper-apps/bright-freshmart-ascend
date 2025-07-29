@@ -272,22 +272,29 @@ async update(id, orderData) {
         };
       }
 
-      const order = ordersData[orderIndex];
+const order = ordersData[orderIndex];
       const previousStatus = order.status;
+      const currentTimestamp = new Date().toISOString();
+
+      // Create enhanced status history entry
+      const statusHistoryEntry = {
+        status: newStatus,
+        timestamp: currentTimestamp,
+        previousStatus,
+        changeReason: additionalData.reason || 'Status updated',
+        updatedBy: additionalData.updatedBy || 'system',
+        notes: additionalData.notes || '',
+        ...additionalData
+      };
 
       // Update the order status
       ordersData[orderIndex] = {
         ...order,
         status: newStatus,
-        updatedAt: new Date().toISOString(),
+        updatedAt: currentTimestamp,
         statusHistory: [
           ...(order.statusHistory || []),
-          {
-            status: newStatus,
-            timestamp: new Date().toISOString(),
-            previousStatus,
-            ...additionalData
-          }
+          statusHistoryEntry
         ]
       };
 

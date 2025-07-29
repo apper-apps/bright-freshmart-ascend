@@ -1,17 +1,18 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "react-toastify";
-import formatCurrency from "@/utils/currency";
+import OrderStatusTimeline from "@/components/molecules/OrderStatusTimeline";
+import { orderService } from "@/services/api/orderService";
+import { productService } from "@/services/api/productService";
+import { vendorService } from "@/services/api/vendorService";
+import { productUnitService } from "@/services/api/productUnitService";
 import ApperIcon from "@/components/ApperIcon";
-import Button from "@/components/atoms/Button";
-import Input from "@/components/atoms/Input";
-import Error from "@/components/ui/Error";
 import Loading from "@/components/ui/Loading";
+import Error from "@/components/ui/Error";
 import Orders from "@/components/pages/Orders";
 import Category from "@/components/pages/Category";
-import { orderService } from "@/services/api/orderService";
-import { vendorService } from "@/services/api/vendorService";
-import { productService } from "@/services/api/productService";
-import { productUnitService } from "@/services/api/productUnitService";
+import { Input } from "@/components/atoms/Input";
+import { Button } from "@/components/atoms/Button";
+import { formatCurrency, calculateTotals } from "@/utils/currency";
 const VendorPortal = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [vendor, setVendor] = useState(null);
@@ -198,8 +199,8 @@ const VendorDashboard = ({ vendor, onLogout, onProfileUpdate }) => {
     if (!vendor) return;
     
     setLoading(true);
-    setError(null);
-try {
+setError(null);
+    try {
       const [vendorProducts, vendorStats] = await Promise.all([
         productService.getVendorProducts(vendor.Id),
         productService.getVendorStats(vendor.Id)
@@ -291,7 +292,8 @@ const tabs = [
     { id: 'packing', label: 'Packing Station', icon: 'Package2', priority: 'critical' },
     { id: 'payment_verification', label: 'Payment Verification', icon: 'Receipt', priority: 'critical' },
     { id: 'fulfillment', label: 'Payment Flow', icon: 'CreditCard', priority: 'critical' },
-    { id: 'orders', label: 'Order History', icon: 'ClipboardList' },
+    { id: 'orders', label: 'Active Orders', icon: 'ClipboardList' },
+    { id: 'completed_orders', label: 'Completed Orders', icon: 'CheckCircle2' },
     { id: 'profile', label: 'Profile', icon: 'User' }
   ];
 
@@ -356,7 +358,6 @@ const tabs = [
             </div>
             
 <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center">
                 <div className="p-2 bg-yellow-100 rounded-lg">
                   <ApperIcon name="DollarSign" size={24} className="text-yellow-600" />
                 </div>
@@ -385,8 +386,8 @@ const tabs = [
       {/* Tabs */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="bg-white rounded-lg shadow">
-          <div className="border-b border-gray-200">
-<nav className="flex flex-wrap gap-2 sm:space-x-8 overflow-x-auto pb-2">
+<div className="border-b border-gray-200">
+            <nav className="flex flex-wrap gap-2 sm:space-x-8 overflow-x-auto pb-2">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
@@ -404,15 +405,14 @@ const tabs = [
                   )}
                 </button>
               ))}
-            </nav>
-</div>
-
+</nav>
+          </div>
           <div className="p-6">
             {loading ? (
               <Loading type="component" />
             ) : error ? (
               <Error message={error} />
-            ) : (
+) : (
               <>
                 {activeTab === 'products' && (
                   <VendorProductsTab 
@@ -444,6 +444,13 @@ const tabs = [
                 {activeTab === 'orders' && (
                   <VendorOrdersTab 
                     vendor={vendor}
+                    showCompleted={false}
+                  />
+                )}
+                {activeTab === 'completed_orders' && (
+                  <VendorOrdersTab 
+                    vendor={vendor}
+                    showCompleted={true}
                   />
                 )}
                 {activeTab === 'profile' && (
@@ -452,7 +459,7 @@ const tabs = [
                     onProfileUpdate={onProfileUpdate}
                   />
                 )}
-              </>
+</>
             )}
           </div>
         </div>
@@ -561,8 +568,8 @@ const VendorProductsTab = ({ products, vendor, onProductUpdate }) => {
                         {product.unit}
                       </div>
                     </div>
-                  </div>
-</td>
+</div>
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   {product.category}
                 </td>
@@ -732,60 +739,92 @@ const EditPriceModal = ({ product, vendor, onSave, onClose }) => {
     setSubmittingApproval(true);
     try {
       // Simulate submission for approval
-      const approvalData = {
-        type: 'price_stock_change',
-        title: `Price/Stock Update - ${product.name}`,
-        description: `Update price from Rs. ${product.price} to Rs. ${formData.price} and stock from ${product.stock} to ${formData.stock}`,
-        submittedBy: `vendor_${vendor.Id}`,
-        affectedEntity: {
-          entityType: 'product',
-          entityId: product.id,
-          entityName: product.name,
-          currentValues: { 
-            price: product.price, 
-            stock: product.stock,
-            purchasePrice: product.purchasePrice || 0
-          },
-          proposedValues: { 
-            price: formData.price, 
-            stock: formData.stock,
-            purchasePrice: formData.purchasePrice
-          }
-        },
+const approvalData = {
+        productId: product.id,
         vendorId: vendor.Id,
-        productId: product.id
+        changes: formData,
+        requestedAt: new Date().toISOString(),
+        reason: 'Price update approval request'
       };
       
-      // Simulate API call to submit for approval
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      setApprovalStatus({
-        status: 'submitted',
-        requestId: `REQ_${Date.now()}`,
-        submittedAt: new Date().toISOString()
-      });
-      
-      toast.success('Changes submitted for approval successfully');
-      
-      // Close modal after brief delay
-      setTimeout(() => {
-        onClose();
-      }, 2000);
-      
+      await productService.submitPriceApproval(approvalData);
+      setApprovalStatus('submitted');
+      toast.success('Price update submitted for approval');
     } catch (error) {
+      console.error('Error submitting approval:', error);
       toast.error('Failed to submit for approval');
     } finally {
       setSubmittingApproval(false);
     }
   };
+function VendorOrdersTab({ vendor, showCompleted = false }) {
+  const [vendorOrders, setVendorOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [expandedOrders, setExpandedOrders] = useState(new Set());
 
-  const calculateMargin = () => {
-    if (formData.purchasePrice > 0 && formData.price > 0) {
-      return ((formData.price - formData.purchasePrice) / formData.purchasePrice) * 100;
+  useEffect(() => {
+    loadVendorOrders();
+  }, [vendor.id, searchTerm, statusFilter, showCompleted]);
+
+  async function loadVendorOrders() {
+    try {
+      setLoading(true);
+      const vendorOrders = await orderService.getVendorOrders(vendor.id);
+      
+      // Filter by completion status
+      const statusFilteredOrders = vendorOrders.filter(order => {
+        const completedStatuses = ['delivered', 'cancelled'];
+        const isCompleted = completedStatuses.includes(order.status);
+        return showCompleted ? isCompleted : !isCompleted;
+      });
+      
+      const filteredOrders = statusFilteredOrders.filter(order => {
+        const matchesSearch = searchTerm === '' || 
+          order.id.toString().includes(searchTerm) ||
+          order.deliveryAddress?.name.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
+return matchesSearch && matchesStatus;
+      });
+      
+      setVendorOrders(filteredOrders);
+    } catch (error) {
+      console.error('Error loading vendor orders:', error);
+      toast.error('Failed to load orders');
+    } finally {
+      setLoading(false);
     }
-    return 0;
+  }
+
+  const toggleOrderExpansion = (orderId) => {
+    const newExpanded = new Set(expandedOrders);
+    if (newExpanded.has(orderId)) {
+      newExpanded.delete(orderId);
+    } else {
+      newExpanded.add(orderId);
+    }
+    setExpandedOrders(newExpanded);
   };
 
+  async function handleAvailabilityUpdate(orderId, productId, available, notes = '') {
+    try {
+      const key = `${orderId}-${productId}`;
+      const availability = available ? 'available' : 'unavailable';
+      
+      await orderService.updateVendorAvailability(orderId, vendor.id, productId, {
+        availability,
+        notes,
+        responseTimestamp: new Date().toISOString()
+      });
+      
+      toast.success(`Product marked as ${availability}`);
+      loadVendorOrders();
+    } catch (error) {
+      console.error('Error updating availability:', error);
+toast.error('Failed to update availability');
+    }
+  }
   const calculatePriceChange = () => {
     if (product.price > 0) {
       return ((formData.price - product.price) / product.price) * 100;
@@ -796,35 +835,20 @@ const EditPriceModal = ({ product, vendor, onSave, onClose }) => {
   const hasChanges = formData.price !== product.price || 
                     formData.stock !== product.stock || 
                     formData.purchasePrice !== (product.purchasePrice || 0);
+const margin = formData.purchasePrice > 0 
+    ? ((formData.price - formData.purchasePrice) / formData.purchasePrice) * 100 
+    : 0;
 
-  if (approvalStatus?.status === 'submitted') {
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div className="bg-white rounded-lg max-w-md w-full p-6 text-center">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <ApperIcon name="CheckCircle" size={32} className="text-green-600" />
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            Submitted for Approval
-          </h3>
-          <p className="text-gray-600 mb-4">
-            Your changes have been submitted and are pending approval.
-          </p>
-          <div className="bg-gray-50 p-3 rounded-lg text-sm">
-            <p><strong>Request ID:</strong> {approvalStatus.requestId}</p>
-            <p><strong>Status:</strong> <span className="text-yellow-600 font-medium">Pending Review</span></p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const hasChanges = formData.price !== product.price || 
+                    formData.stock !== product.stock || 
+                    formData.purchasePrice !== (product.purchasePrice || 0);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-lg max-w-md w-full p-6">
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-lg font-semibold text-gray-900">
-            Edit Price & Stock - {product.name}
+            Edit Product Price
           </h3>
           <button
             onClick={onClose}
@@ -835,7 +859,7 @@ const EditPriceModal = ({ product, vendor, onSave, onClose }) => {
         </div>
 
         <div className="space-y-4">
-          {/* Price Input */}
+{/* Price Input */}
           <div>
             <Input
               type="number"
@@ -843,18 +867,9 @@ const EditPriceModal = ({ product, vendor, onSave, onClose }) => {
               label="Selling Price (Rs.)"
               value={formData.price}
               onChange={handleInputChange}
-              step="0.01"
-              min="0"
-              required
               error={errors.price}
-              disabled={!product.vendorInfo?.canEditPrice}
+              required
             />
-            {!product.vendorInfo?.canEditPrice && (
-              <p className="text-xs text-amber-600 mt-1">
-                <ApperIcon name="Lock" size={12} className="inline mr-1" />
-                Selling price editing restricted for this product
-              </p>
-            )}
           </div>
 
           {/* Purchase Price Input */}
@@ -862,20 +877,11 @@ const EditPriceModal = ({ product, vendor, onSave, onClose }) => {
             <Input
               type="number"
               name="purchasePrice"
-              label="Cost Price (Rs.)"
+              label="Purchase Price (Rs.)"
               value={formData.purchasePrice}
               onChange={handleInputChange}
-              step="0.01"
-              min="0"
               error={errors.purchasePrice}
-              disabled={!product.vendorInfo?.canEditCost}
             />
-            {!product.vendorInfo?.canEditCost && (
-              <p className="text-xs text-amber-600 mt-1">
-                <ApperIcon name="Lock" size={12} className="inline mr-1" />
-                Cost price editing restricted - contact admin for changes
-              </p>
-            )}
           </div>
 
           {/* Stock Input */}
@@ -886,40 +892,564 @@ const EditPriceModal = ({ product, vendor, onSave, onClose }) => {
               label="Stock Quantity"
               value={formData.stock}
               onChange={handleInputChange}
-              min="0"
-              required
               error={errors.stock}
+              required
             />
-            <p className="text-xs text-gray-500 mt-1">
-              Current stock: {product.stock} units
-            </p>
           </div>
 
-          {/* Calculated Metrics */}
-          <div className="bg-gray-50 p-4 rounded-lg space-y-3">
-            {/* Profit Margin */}
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-medium text-gray-700">
-                Profit Margin:
-              </span>
-              <span className={`text-sm font-semibold ${
-                calculateMargin() >= (product.vendorInfo?.minMargin || 5)
-                  ? 'text-green-600'
-                  : 'text-red-600'
-              }`}>
-                {calculateMargin().toFixed(2)}%
-              </span>
-            </div>
-
-            {/* Price Change */}
-            {formData.price !== product.price && (
+          {/* Summary */}
+          {hasChanges && (
+            <div className="bg-gray-50 p-4 rounded-lg space-y-2">
               <div className="flex justify-between items-center">
                 <span className="text-sm font-medium text-gray-700">
-                  Price Change:
+                  Profit Margin:
                 </span>
                 <span className={`text-sm font-semibold ${
-                  Math.abs(calculatePriceChange()) <= 20
-                    ? 'text-blue-600'
+                  margin >= 20 ? 'text-green-600' : margin >= 10 ? 'text-yellow-600' : 'text-red-600'
+                }`}>
+                  {margin.toFixed(1)}%
+                </span>
+              </div>
+
+              {/* Price Change */}
+              {formData.price !== product.price && (
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-gray-700">
+                    Price Change:
+                  </span>
+                  <span className={`text-sm font-semibold ${
+                    Math.abs(calculatePriceChange()) <= 20
+                      ? 'text-blue-600'
+                      : 'text-red-600'
+                  }`}>
+                    {calculatePriceChange() > 0 ? '+' : ''}{calculatePriceChange().toFixed(1)}%
+                  </span>
+                </div>
+              )}
+
+              {/* Stock Change */}
+              {formData.stock !== product.stock && (
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-gray-700">
+                    Stock Change:
+                  </span>
+                  <span className="text-sm font-semibold text-blue-600">
+                    {formData.stock - product.stock > 0 ? '+' : ''}{formData.stock - product.stock} units
+                  </span>
+                </div>
+              )}
+
+              <div className="text-xs text-gray-500 pt-2 border-t">
+                Min margin: {product.vendorInfo?.minMargin || 5}% • 
+                Max price change: 20% • 
+                Profit: {formData.purchasePrice > 0 && formData.price > formData.purchasePrice ? 
+                  formatCurrency(formData.price - formData.purchasePrice) : 'Rs. 0'}
+              </div>
+            </div>
+          )}
+          
+          {/* Action Buttons */}
+          <div className="flex flex-col space-y-3 pt-4">
+            {/* Submit for Approval Button */}
+            <Button
+              type="button"
+              onClick={handleSubmitForApproval}
+              variant="primary"
+              className="w-full"
+              disabled={!hasChanges || submittingApproval || Object.keys(errors).length > 0}
+            >
+              {submittingApproval ? (
+                <>
+                  <ApperIcon name="Loader2" size={16} className="animate-spin mr-2" />
+                  Submitting for Approval...
+                </>
+              ) : (
+                <>
+                  <ApperIcon name="Send" size={16} className="mr-2" />
+                  Submit for Approval
+                </>
+              )}
+            </Button>
+
+            {/* Direct Save and Cancel buttons */}
+            <div className="flex space-x-3">
+              <Button
+                type="button"
+                onClick={onClose}
+                variant="outline"
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={handleDirectSave}
+                variant="ghost"
+                className="flex-1"
+                disabled={!hasChanges || loading || Object.keys(errors).length > 0}
+              >
+                {loading ? (
+                  <>
+                    <ApperIcon name="Loader2" size={16} className="animate-spin mr-2" />
+                    Saving...
+                  </>
+                ) : (
+                  'Save Direct'
+                )}
+              </Button>
+            </div>
+          </div>
+
+          {/* Validation Summary */}
+          {Object.keys(errors).length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+              <div className="flex items-center mb-2">
+                <ApperIcon name="AlertCircle" size={16} className="text-red-600 mr-2" />
+                <span className="text-sm font-medium text-red-800">Please fix the following issues:</span>
+              </div>
+              <ul className="text-sm text-red-700 space-y-1">
+                {Object.values(errors).map((error, index) => (
+                  <li key={index}>• {error}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// VendorOrdersTab - Updated to show order history with availability status and completed orders
+function VendorOrdersTab({ vendor, showCompleted = false }) {
+  const [vendorOrders, setVendorOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [expandedOrders, setExpandedOrders] = useState(new Set());
+
+  useEffect(() => {
+    loadVendorOrders();
+  }, [vendor.id, searchTerm, statusFilter, showCompleted]);
+
+  async function loadVendorOrders() {
+    try {
+      setLoading(true);
+      const vendorOrders = await orderService.getVendorOrders(vendor.id);
+      
+      // Filter by completion status
+      const statusFilteredOrders = vendorOrders.filter(order => {
+        const completedStatuses = ['delivered', 'cancelled'];
+        const isCompleted = completedStatuses.includes(order.status);
+        return showCompleted ? isCompleted : !isCompleted;
+      });
+      
+      const filteredOrders = statusFilteredOrders.filter(order => {
+        const matchesSearch = searchTerm === '' || 
+          order.id.toString().includes(searchTerm) ||
+          order.deliveryAddress?.name.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
+        return matchesSearch && matchesStatus;
+      });
+      
+      setVendorOrders(filteredOrders);
+    } catch (error) {
+      console.error('Error loading vendor orders:', error);
+      toast.error('Failed to load orders');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const toggleOrderExpansion = (orderId) => {
+    const newExpanded = new Set(expandedOrders);
+    if (newExpanded.has(orderId)) {
+      newExpanded.delete(orderId);
+    } else {
+      newExpanded.add(orderId);
+    }
+    setExpandedOrders(newExpanded);
+  };
+
+  async function handleAvailabilityUpdate(orderId, productId, available, notes = '') {
+    try {
+      const key = `${orderId}-${productId}`;
+      const availability = available ? 'available' : 'unavailable';
+      
+      await orderService.updateVendorAvailability(orderId, vendor.id, productId, {
+        availability,
+        notes,
+        responseTimestamp: new Date().toISOString()
+      });
+      
+      toast.success(`Product marked as ${availability}`);
+      loadVendorOrders();
+    } catch (error) {
+      console.error('Error updating availability:', error);
+      toast.error('Failed to update availability');
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-800">
+            {showCompleted ? 'Completed Orders' : 'Active Orders'}
+          </h2>
+          <p className="text-sm text-gray-600">
+            {showCompleted 
+              ? 'View completed and cancelled orders with full status history' 
+              : 'Track and manage your active order requests'
+            }
+          </p>
+        </div>
+        
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+          <div className="relative">
+            <ApperIcon name="Search" size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <Input
+              type="text"
+              placeholder="Search orders..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 w-full sm:w-64"
+            />
+          </div>
+          
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="all">All Status</option>
+            {!showCompleted && (
+              <>
+                <option value="pending">Pending</option>
+                <option value="confirmed">Confirmed</option>
+                <option value="packed">Packed</option>
+                <option value="shipped">Shipped</option>
+              </>
+            )}
+            {showCompleted && (
+              <>
+                <option value="delivered">Delivered</option>
+                <option value="cancelled">Cancelled</option>
+              </>
+            )}
+          </select>
+        </div>
+      </div>
+
+      {vendorOrders.length === 0 ? (
+        <div className="text-center py-12">
+          <ApperIcon name="ClipboardList" size={48} className="mx-auto text-gray-400 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">No Orders Found</h3>
+          <p className="text-gray-500">
+            {searchTerm || statusFilter !== 'all' 
+              ? 'No orders match your current filters.' 
+              : showCompleted 
+                ? 'No completed orders yet.'
+                : 'You have no active orders.'
+            }
+          </p>
+        </div>
+      ) : (
+        <div className="grid gap-6">
+          {vendorOrders.map(order => {
+            const vendorItems = order.items?.filter(item => 
+              (item.productId % 3 + 1) === parseInt(vendor.id)
+            ) || [];
+            
+            if (vendorItems.length === 0) return null;
+            
+            const isPacked = order.status === 'packed' || order.status === 'shipped' || order.status === 'delivered';
+            const allItemsPhotoSkipped = vendorItems.every(item => 
+              order.packingInfo?.skippedFields?.photo === true
+            );
+            const isExpanded = expandedOrders.has(order.id);
+            
+return (
+              <div key={order.id} className="bg-white rounded-xl shadow-card border border-gray-200 overflow-hidden">
+                <div className="p-6">
+                  <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h3 className="text-xl font-semibold text-gray-800">
+                          Order #{order.id}
+                        </h3>
+                        <div className="flex items-center gap-2">
+                          {getOrderStatusBadge(order)}
+                          <ApperIcon name="Clock" size={16} className="text-gray-400" />
+                          <span className="text-sm text-gray-500">  
+                            {format(new Date(order.createdAt), 'MMM dd, yyyy • hh:mm a')}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-4 text-sm text-gray-600">
+                        <div className="flex items-center gap-1">
+                          <ApperIcon name="User" size={16} />
+                          <span>{order.deliveryAddress?.name}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <ApperIcon name="MapPin" size={16} />
+                          <span>{order.deliveryAddress?.city}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <ApperIcon name="Phone" size={16} />
+                          <span>{order.deliveryAddress?.phone}</span>
+</div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex flex-col lg:flex-row items-start lg:items-center gap-3">
+                      <div className="text-right">
+                        <div className="text-lg font-semibold text-gray-800">
+                          {formatCurrency(order.total)}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {vendorItems.length} item{vendorItems.length !== 1 ? 's' : ''}
+                        </div>
+                      </div>
+                      
+                      {(showCompleted || order.statusHistory) && (
+                        <Button
+                          variant="outline"
+                          onClick={() => toggleOrderExpansion(order.id)}
+                          className="flex items-center gap-2"
+                        >
+                          <ApperIcon name="History" size={16} />
+                          {isExpanded ? 'Hide Timeline' : 'View Timeline'}
+                          <ApperIcon 
+                            name={isExpanded ? "ChevronUp" : "ChevronDown"} 
+                            size={16} 
+                          />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Timeline Section - Show when expanded */}
+                  {isExpanded && (
+                    <div className="border-t pt-6 mb-6">
+                      <OrderStatusTimeline order={order} />
+                    </div>
+                  )}
+
+                  {/* Vendor Items Section */}
+                  <div className="border-t pt-6">
+                    <h4 className="font-medium text-gray-800 mb-4 flex items-center">
+<ApperIcon name="Package" size={18} className="mr-2 text-blue-600" />
+                      Your Items in this Order
+                    </h4>
+                    
+                    <div className="grid gap-3">
+                      {vendorItems.map((item) => (
+                        <div key={item.productId} className="p-3 bg-gray-50 rounded-lg border">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h5 className="font-medium text-gray-900">{item.name}</h5>
+                              <p className="text-sm text-gray-600">
+                                {item.quantity} {item.unit} × {formatCurrency(item.price)}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-semibold text-gray-900">
+                                {formatCurrency(item.price * item.quantity)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Calculate totals for vendor products (moved to proper location)
+const calculateTotals = (products, fields) => {
+  if (!products || products.length === 0) {
+    return {
+      totalCost: 0,
+      totalSellingValue: 0,
+      totalMargin: 0,
+      averageMargin: 0
+    };
+  }
+
+  const totals = products.reduce((acc, product) => {
+    const cost = product[fields.costField] || 0;
+    const selling = product[fields.sellingField] || 0;
+    const quantity = product[fields.quantityField] || 0;
+    
+    acc.totalCost += cost * quantity;
+    acc.totalSellingValue += selling * quantity;
+    acc.totalMargin += (selling - cost) * quantity;
+    
+    return acc;
+  }, {
+    totalCost: 0,
+    totalSellingValue: 0,
+    totalMargin: 0
+  });
+
+  const averageMargin = totals.totalCost > 0 
+    ? ((totals.totalSellingValue - totals.totalCost) / totals.totalCost) * 100 
+    : 0;
+
+  return {
+    ...totals,
+    averageMargin: Math.round(averageMargin * 100) / 100
+  };
+};
+
+// Calculate price change helper function
+const calculatePriceChange = (formData, product) => {
+  if (product.price > 0) {
+    return ((formData.price - product.price) / product.price) * 100;
+  }
+  return 0;
+};
+
+// Get order status badge helper function
+const getOrderStatusBadge = (order) => {
+  const statusColors = {
+    'pending': 'bg-yellow-100 text-yellow-800',
+    'confirmed': 'bg-blue-100 text-blue-800',
+    'packed': 'bg-purple-100 text-purple-800',
+    'shipped': 'bg-indigo-100 text-indigo-800',
+    'delivered': 'bg-green-100 text-green-800',
+    'cancelled': 'bg-red-100 text-red-800'
+  };
+
+  return (
+    <span className={`px-2 py-1 text-xs font-medium rounded-full ${statusColors[order.status] || 'bg-gray-100 text-gray-800'}`}>
+      {order.status?.toUpperCase() || 'UNKNOWN'}
+    </span>
+  );
+};
+
+// Format date helper function
+const format = (date, formatString) => {
+  const d = new Date(date);
+  if (formatString === 'MMM dd, yyyy • hh:mm a') {
+    return d.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: '2-digit', 
+      year: 'numeric' 
+    }) + ' • ' + d.toLocaleTimeString('en-US', { 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      hour12: true 
+    });
+  }
+  return d.toLocaleDateString();
+};
+
+// Edit Price Modal Component (fixed)
+const EditPriceModal = ({ product, vendor, onSave, onClose }) => {
+  const [formData, setFormData] = useState({
+    price: product.price,
+    purchasePrice: product.purchasePrice || 0,
+    stock: product.stock || 0
+  });
+  const [loading, setLoading] = useState(false);
+  const [submittingApproval, setSubmittingApproval] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [approvalStatus, setApprovalStatus] = useState(null);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    const numericValue = name === 'stock' ? parseInt(value) || 0 : parseFloat(value) || 0;
+    
+    setFormData(prev => ({
+      ...prev,
+      [name]: numericValue
+    }));
+    
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({
+        ...prev,
+        [name]: null
+      }));
+    }
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+    
+    // Price validation
+    if (formData.price <= 0) {
+      newErrors.price = 'Price must be greater than 0';
+    }
+    
+    // Purchase price validation
+    if (formData.purchasePrice < 0) {
+      newErrors.purchasePrice = 'Purchase price cannot be negative';
+    }
+    
+    // Stock validation
+    if (formData.stock < 0) {
+      newErrors.stock = 'Stock cannot be negative';
+    }
+    
+    // Selling price > buying price validation
+    if (formData.purchasePrice > 0 && formData.price <= formData.purchasePrice) {
+      newErrors.price = 'Selling price must be greater than purchase price';
+    }
+    
+    // Margin validation
+    const margin = formData.purchasePrice > 0 
+      ? ((formData.price - formData.purchasePrice) / formData.purchasePrice) * 100 
+      : 0;
+    
+    if (margin < (product.vendorInfo?.minMargin || 5)) {
+      newErrors.price = `Minimum margin required: ${product.vendorInfo?.minMargin || 5}%`;
+    }
+    
+    // Max 20% price change validation
+    const priceChangePercent = Math.abs(calculatePriceChange(formData, product));
+    if (priceChangePercent > 20) {
+      newErrors.price = 'Maximum 20% price change allowed per update';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleDirectSave = async (e) => {
+    e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      await onSave(product.id, formData);
+    } catch (error) {
+      // Error handled in onSave
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmitForApproval = async () => {
+    if (!validateForm()) {
+      return;
+    }
+    
+    setSubmittingApproval(true);
+    try {
                     : 'text-red-600'
                 }`}>
                   {calculatePriceChange() > 0 ? '+' : ''}{calculatePriceChange().toFixed(1)}%
@@ -1204,8 +1734,8 @@ const VendorProfileTab = ({ vendor, onProfileUpdate }) => {
                   >
                     {permission.replace('_', ' ')}
                   </span>
-                ))}
-</div>
+))}
+              </div>
             </div>
           </div>
         )}
@@ -1382,8 +1912,8 @@ const loadPendingAvailabilityOrders = async () => {
     }
   };
 
-  // Phase 1: Enhanced status display for immediate visibility orders
-const getOrderStatusBadge = (order) => {
+// Phase 1: Enhanced status display for immediate visibility orders
+  const getOrderStatusBadge = (order) => {
     if (order.vendor_visibility === 'immediate') {
       if (order.status === 'awaiting_payment_verification') {
         return (
@@ -1470,9 +2000,9 @@ const getOrderStatusBadge = (order) => {
           const deadline = getDeadlineStatus(order.createdAt);
           const vendorProducts = order.items?.filter(item => (item.productId % 3 + 1) === vendor.Id) || [];
           
-          return (
-<div key={order.id} className={`rounded-lg shadow-sm border overflow-hidden ${
-              order.status === 'awaiting_payment_verification' 
+return (
+            <div key={order.id} className={`rounded-lg shadow-sm border overflow-hidden ${
+              order.status === 'awaiting_payment_verification'
                 ? 'bg-red-50 border-l-4 border-l-red-500 border-red-200' 
                 : 'bg-white border-gray-200'
             }`}>
@@ -1658,8 +2188,10 @@ const VendorPackingTab = ({ vendor }) => {
   const handleStartPacking = (order) => {
     setSelectedOrder(order);
     setPackingData({
+setSelectedOrder(order);
+    setPackingData({
       orderId: order.id,
-items: order.items?.filter(item => (item.productId % 3 + 1) === vendor.Id).map(item => {
+      items: order.items?.filter(item => (item.productId % 3 + 1) === vendor.Id).map(item => {
         const fieldConfig = productUnitService.getFieldConfig(item);
         return {
           ...item,
@@ -1673,7 +2205,6 @@ items: order.items?.filter(item => (item.productId % 3 + 1) === vendor.Id).map(i
       }) || []
     });
   };
-
 const handleItemVerification = (itemIndex, field, value) => {
     setPackingData(prev => ({
       ...prev,
@@ -1722,6 +2253,8 @@ const handleItemVerification = (itemIndex, field, value) => {
       reader.readAsDataURL(file);
     }
   };
+const handlePackingComplete = async () => {
+    // Validate that all items are verified or properly skipped
 
 const handlePackingComplete = async () => {
     // Validate that all items are verified or properly skipped
@@ -1886,8 +2419,8 @@ const handlePackingComplete = async () => {
               </h3>
             </div>
             
-            <div className="p-6 space-y-6">
-{/* Items Checklist */}
+<div className="p-6 space-y-6">
+              {/* Items Checklist */}
               <div>
                 <h4 className="font-medium text-gray-900 mb-3">Items Verification</h4>
                 <div className="space-y-4">
@@ -1986,9 +2519,9 @@ const handlePackingComplete = async () => {
                   ))}
                 </div>
               </div>
+</div>
               
-{/* Photo Capture - Optional */}
-              <div>
+              {/* Photo Capture - Optional */}
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="font-medium text-gray-900">
                     Package Photo 
@@ -2092,8 +2625,8 @@ const handlePackingComplete = async () => {
                 variant="outline"
               >
                 Cancel
-              </Button>
-<Button
+</Button>
+              <Button
                 onClick={handlePackingComplete}
                 variant="primary"
                 disabled={!packingData.items?.every(item => item.verified)}
@@ -2212,8 +2745,8 @@ const VendorOrdersTab = ({ vendor }) => {
 
       {/* Orders List */}
       <div className="space-y-4">
-        {filteredOrders.map((order) => (
-<div key={order.id} className={`border rounded-lg overflow-hidden transition-all duration-200 ${
+{filteredOrders.map((order) => (
+          <div key={order.id} className={`border rounded-lg overflow-hidden transition-all duration-200 ${
             // Color-code orders by status for better visual tracking
             order.status === 'pending' ? 'border-red-200 bg-red-50 shadow-red-100' :
             order.status === 'confirmed' || order.verificationStatus === 'verified' ? 'border-green-200 bg-green-50 shadow-green-100' :
