@@ -442,13 +442,87 @@ providedData: Object.keys(orderData),
       return {
         success: true,
         data: updatedOrder,
-        message: 'Payment proof uploaded successfully'
+message: 'Payment proof uploaded successfully'
       };
     } catch (error) {
       console.error('Error adding payment proof:', error);
       return {
         success: false,
         error: 'Failed to upload payment proof',
+        data: null
+      };
+    }
+  }
+
+  // Update order (combines status and items updates)
+  async updateOrder(orderId, updates = {}) {
+    try {
+      await delay(600);
+      
+      const orderIndex = this.orders.findIndex(o => o.id === orderId);
+      
+      if (orderIndex === -1) {
+        return {
+          success: false,
+          error: 'Order not found',
+          data: null
+        };
+      }
+
+      const currentOrder = this.orders[orderIndex];
+      const updatedOrder = { ...currentOrder };
+
+      // Update status if provided
+      if (updates.status) {
+        const validTransitions = STATUS_TRANSITIONS[currentOrder.status] || [];
+        if (validTransitions.includes(updates.status)) {
+          updatedOrder.status = updates.status;
+          updatedOrder.statusHistory = [
+            ...currentOrder.statusHistory,
+            {
+              status: updates.status,
+              timestamp: new Date().toISOString(),
+              note: updates.note || ''
+            }
+          ];
+        } else {
+          return {
+            success: false,
+            error: `Invalid status transition from ${currentOrder.status} to ${updates.status}`,
+            data: null
+          };
+        }
+      }
+
+      // Update items if provided
+      if (updates.items && Array.isArray(updates.items)) {
+        updatedOrder.items = updates.items;
+        updatedOrder.total = updates.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      }
+
+      // Update other fields if provided
+      if (updates.note) {
+        updatedOrder.notes = [...(currentOrder.notes || []), {
+          id: generateId(),
+          text: updates.note,
+          timestamp: new Date().toISOString(),
+          author: 'System'
+        }];
+      }
+
+      updatedOrder.updatedAt = new Date().toISOString();
+      this.orders[orderIndex] = updatedOrder;
+
+      return {
+        success: true,
+        data: updatedOrder,
+        message: 'Order updated successfully'
+      };
+    } catch (error) {
+      console.error('Error updating order:', error);
+      return {
+        success: false,
+        error: 'Failed to update order',
         data: null
       };
     }
@@ -619,12 +693,27 @@ const orderService = new OrderService();
 export const getAllOrders = (filters) => orderService.getAllOrders(filters);
 export const getOrderById = (orderId) => orderService.getOrderById(orderId);
 export const createOrder = (orderData) => orderService.createOrder(orderData);
+export const updateOrder = (orderId, updates) => orderService.updateOrder(orderId, updates);
 export const updateOrderStatus = (orderId, status, note) => orderService.updateOrderStatus(orderId, status, note);
 export const updateOrderItems = (orderId, items) => orderService.updateOrderItems(orderId, items);
 export const addPaymentProof = (orderId, paymentProof) => orderService.addPaymentProof(orderId, paymentProof);
 export const cancelOrder = (orderId, reason) => orderService.cancelOrder(orderId, reason);
 export const getOrderStats = (filters) => orderService.getOrderStats(filters);
 export const searchOrders = (query, filters) => orderService.searchOrders(query, filters);
+
+// Create DR object for backward compatibility
+export const DR = {
+  updateOrder: (orderId, updates) => orderService.updateOrder(orderId, updates),
+  updateOrderStatus: (orderId, status, note) => orderService.updateOrderStatus(orderId, status, note),
+  updateOrderItems: (orderId, items) => orderService.updateOrderItems(orderId, items),
+  getAllOrders: (filters) => orderService.getAllOrders(filters),
+  getOrderById: (orderId) => orderService.getOrderById(orderId),
+  createOrder: (orderData) => orderService.createOrder(orderData),
+  addPaymentProof: (orderId, paymentProof) => orderService.addPaymentProof(orderId, paymentProof),
+  cancelOrder: (orderId, reason) => orderService.cancelOrder(orderId, reason),
+  getOrderStats: (filters) => orderService.getOrderStats(filters),
+  searchOrders: (query, filters) => orderService.searchOrders(query, filters)
+};
 
 // Export default service
 export default orderService;
