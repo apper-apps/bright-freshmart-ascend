@@ -7,7 +7,7 @@ import Input from '@/components/atoms/Input';
 import Loading from '@/components/ui/Loading';
 import Error from '@/components/ui/Error';
 import Badge from '@/components/atoms/Badge';
-import { orderService } from '@/services/api/orderService';
+import orderService from '@/services/api/orderService';
 import { deliveryPersonnelService } from '@/services/api/deliveryPersonnelService';
 
 const DeliveryTracking = () => {
