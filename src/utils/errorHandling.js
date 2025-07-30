@@ -4,10 +4,15 @@ static classifyError(error) {
     const message = error.message?.toLowerCase() || '';
     
     // COD and Order-specific errors
-    if (message.includes('order id is required') || message.includes('invalid order id') || message.includes('order creation failed')) {
+// Enhanced order processing error detection with specific Order ID patterns
+    if (message.includes('order id is required') || message.includes('invalid order id') || 
+        message.includes('order creation failed') || message.includes('Order ID generation failed') ||
+        message.includes('Failed to generate valid order id')) {
       return 'order-processing';
     }
-    if (message.includes('cod processing') || message.includes('cash on delivery')) {
+    // COD processing errors with Order ID context
+    if (message.includes('cod processing') || message.includes('cash on delivery') ||
+        (message.includes('COD') && message.includes('Order ID'))) {
       return 'cod-processing';
     }
     if (message.includes('payment processing') || message.includes('payment failed')) {
@@ -134,27 +139,32 @@ if (context.includes('upload') || context.includes('file')) {
     
 // Checkout-specific error handling
     if (context.includes('checkout') || context.includes('order')) {
-      // Never retry order processing failures - require immediate attention
-      if (message.includes('order id is required') || message.includes('order creation failed') || message.includes('invalid order id')) {
+// Never retry order processing failures - require immediate attention
+      if (message.includes('order id is required') || message.includes('order creation failed') || 
+          message.includes('invalid order id') || message.includes('Order ID generation failed') ||
+          message.includes('Failed to generate valid order id')) {
         localStorage.setItem('checkout-order-error', JSON.stringify({
           type: 'order_processing_failure',
           message: error.message,
           timestamp: Date.now(),
           requiresSupport: true,
           supportContact: 'support@freshmart.pk',
-          urgency: 'high'
+          urgency: 'high',
+          errorContext: 'order_id_validation_failure'
         }));
         return false;
       }
       
       // Never retry COD processing failures - require user intervention
-      if (message.includes('cod processing') || message.includes('cash on delivery')) {
+      if (message.includes('cod processing') || message.includes('cash on delivery') ||
+          (message.includes('COD') && message.includes('Order ID'))) {
         localStorage.setItem('checkout-cod-error', JSON.stringify({
           type: 'cod_processing_failure',
           message: error.message,
           timestamp: Date.now(),
           requiresSupport: true,
-          supportContact: 'support@freshmart.pk'
+          supportContact: 'support@freshmart.pk',
+          errorContext: 'cod_order_id_failure'
         }));
         return false;
       }
@@ -252,9 +262,11 @@ guidance.showFAQ = true;
       guidance.showEmail = true;
       guidance.priority = 'critical';
       guidance.supportContact = 'support@freshmart.pk';
-      
-      if (message.includes('payment') || message.includes('transaction')) {
+if (message.includes('payment') || message.includes('transaction')) {
         guidance.recommendedAction = 'verify_payment_details';
+      } else if (message.includes('order id') || message.includes('Order ID')) {
+        guidance.recommendedAction = 'contact_support_order_id';
+        guidance.supportRequired = true;
       } else {
         guidance.recommendedAction = 'retry_checkout';
       }

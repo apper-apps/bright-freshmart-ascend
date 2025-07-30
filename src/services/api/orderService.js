@@ -149,15 +149,40 @@ async create(orderData) {
     // Initialize vendor availability tracking
     const vendorAvailability = orderData.vendor_availability || {};
     
-// Generate and validate order ID
-    const orderId = this.getNextId();
-    
-    // Validate generated ID
-    if (!orderId || typeof orderId !== 'number' || orderId <= 0) {
-      console.error('Failed to generate valid order ID:', orderId);
-      throw new Error('Order ID generation failed - please try again');
+// Enhanced Order ID generation and validation
+    let orderId;
+    try {
+      orderId = this.getNextId();
+      
+      // Comprehensive Order ID validation
+      if (orderId === null || orderId === undefined) {
+        console.error('OrderService.create: Order ID generation returned null/undefined');
+        throw new Error('Order ID is required - generation failed');
+      }
+      
+      if (typeof orderId !== 'number') {
+        console.error('OrderService.create: Order ID must be a number, got:', typeof orderId, orderId);
+        throw new Error('Order ID generation failed - invalid type');
+      }
+      
+      if (orderId <= 0 || !Number.isInteger(orderId)) {
+        console.error('OrderService.create: Order ID must be a positive integer, got:', orderId);
+        throw new Error('Failed to generate valid order ID - please try again');
+      }
+      
+      // Check for duplicate Order ID (edge case protection)
+      const existingOrder = this.orders.find(order => order.id === orderId);
+      if (existingOrder) {
+        console.error('OrderService.create: Duplicate Order ID detected:', orderId);
+        throw new Error('Order ID generation failed - duplicate detected');
+      }
+      
+      console.log('OrderService.create: Successfully generated Order ID:', orderId);
+      
+    } catch (idError) {
+      console.error('OrderService.create: Order ID generation error:', idError);
+      throw new Error(`Order ID is required - ${idError.message}`);
     }
-
     const newOrder = {
       id: orderId,
       ...orderData,
@@ -188,12 +213,23 @@ async create(orderData) {
       updatedAt: new Date().toISOString()
     };
 
-    // Final validation of created order object
-    if (!newOrder.id || typeof newOrder.id !== 'number') {
-      console.error('Order creation validation failed:', newOrder);
-      throw new Error('Order creation failed - invalid order data');
+// Enhanced final validation of created order object
+    if (!newOrder.id || typeof newOrder.id !== 'number' || newOrder.id <= 0) {
+      console.error('OrderService.create: Final order validation failed:', {
+        id: newOrder.id,
+        idType: typeof newOrder.id,
+        orderData: { ...newOrder, items: `${newOrder.items?.length || 0} items` }
+      });
+      throw new Error('Order ID is required - final validation failed');
     }
     
+    // Verify order structure integrity
+    if (!newOrder.items || !Array.isArray(newOrder.items) || newOrder.items.length === 0) {
+      console.error('OrderService.create: Order must have items:', newOrder.items);
+      throw new Error('Order creation failed - no items provided');
+    }
+    
+    console.log('OrderService.create: Order validation passed for ID:', newOrder.id);
     // Handle wallet payments with comprehensive error handling
 if (orderData.paymentMethod === 'wallet') {
       try {
@@ -429,10 +465,40 @@ console.error('Error fetching vendor orders:', error);
     return true;
   }
 
-  getNextId() {
-    const maxId = this.orders.reduce((max, order) => 
-      order.id > max ? order.id : max, 0);
-    return maxId + 1;
+getNextId() {
+    try {
+      // Enhanced Order ID generation with comprehensive validation
+      if (!this.orders || !Array.isArray(this.orders)) {
+        console.error('OrderService.getNextId: Orders array is invalid:', this.orders);
+        throw new Error('Orders data unavailable for ID generation');
+      }
+      
+      // Find maximum ID with proper validation
+      let maxId = 0;
+      for (const order of this.orders) {
+        if (order && typeof order.id === 'number' && order.id > maxId) {
+          maxId = order.id;
+        }
+      }
+      
+      const nextId = maxId + 1;
+      
+      // Validate generated ID
+      if (!Number.isInteger(nextId) || nextId <= 0) {
+        console.error('OrderService.getNextId: Invalid next ID calculated:', nextId, 'from maxId:', maxId);
+        throw new Error('Failed to calculate next order ID');
+      }
+      
+      console.log('OrderService.getNextId: Generated ID:', nextId, 'from', this.orders.length, 'orders');
+      return nextId;
+      
+    } catch (error) {
+      console.error('OrderService.getNextId: Error generating order ID:', error);
+      // Fallback to timestamp-based ID in case of failure
+      const fallbackId = Date.now() % 1000000; // Last 6 digits of timestamp
+      console.warn('OrderService.getNextId: Using fallback ID:', fallbackId);
+      return fallbackId;
+    }
   }
   async assignDeliveryPersonnel(orderId, deliveryPersonId) {
     await this.delay();
