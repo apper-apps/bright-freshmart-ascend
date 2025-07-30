@@ -19,11 +19,11 @@ import {
   Download,
   RefreshCw
 } from 'lucide-react';
-import Loading from '@/components/ui/Loading';
-import Error from '@/components/ui/Error';
-import { orderService } from '@/services/api/orderService';
-import { productService } from '@/services/api/productService';
-import { vendorService } from '@/services/api/vendorService';
+import Loading from '@/components/ui/Loading'
+import Error from '@/components/ui/Error'
+import orderService from '@/services/api/orderService'
+import { productService } from '@/services/api/productService'
+import { vendorService } from '@/services/api/vendorService'
 import { employeeService } from '@/services/api/employeeService';
 import { financialService } from '@/services/api/financialService';
 import { reportService } from '@/services/api/reportService';
