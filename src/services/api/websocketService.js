@@ -1,3 +1,5 @@
+import React from "react";
+import Error from "@/components/ui/Error";
 class WebSocketService {
   constructor() {
     this.connection = null;
@@ -1110,8 +1112,7 @@ try {
   subscribeToPriceApprovals(callback) {
     return this.subscribe('price-approvals', callback);
   }
-  
-  // Send approval-specific messages
+// Send approval-specific messages
   sendApprovalMessage(type, data) {
     return this.send({
       type: `approval_${type}`,
@@ -1123,11 +1124,63 @@ try {
   // Send payment flow messages
   sendPaymentFlowMessage(type, data) {
     return this.send({
-      type: `payment_${type}`,
+      type: `payment_flow_${type}`,
       data,
       timestamp: new Date().toISOString()
     });
   }
+  
+  // Send order sync messages
+  sendOrderSyncMessage(type, data) {
+    return this.send({
+      type: `order_sync_${type}`,
+      data,
+      timestamp: new Date().toISOString()
+    });
+  }
+  
+  // Subscribe to order updates
+  subscribeToOrderUpdates(callback) {
+    const orderEventTypes = [
+      'order_status_update',
+      'order_payment_verified', 
+      'order_delivery_update',
+      'order_created',
+      'order_cancelled'
+    ];
+    
+    orderEventTypes.forEach(eventType => {
+      this.subscribe(eventType, callback);
+    });
+  }
+  
+  // Unsubscribe from order updates
+  unsubscribeFromOrderUpdates() {
+    const orderEventTypes = [
+      'order_status_update',
+      'order_payment_verified',
+      'order_delivery_update', 
+      'order_created',
+      'order_cancelled'
+    ];
+    
+    orderEventTypes.forEach(eventType => {
+      delete this.listeners[eventType];
+    });
+  }
+  
+  // Request order sync for specific order
+  requestOrderSync(orderId) {
+    return this.sendOrderSyncMessage('request_update', { orderId });
+// Send order status change
+  sendOrderStatusChange(orderId, newStatus, additionalData = {}) {
+    return this.sendOrderSyncMessage('status_change', {
+      orderId,
+      status: newStatus,
+      ...additionalData
+    });
+  }
+}
 }
 
 // Create singleton instance
