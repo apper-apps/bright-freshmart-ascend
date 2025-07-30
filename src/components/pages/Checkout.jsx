@@ -459,16 +459,28 @@ status: 'pending'
       
 let errorMessage = 'Failed to place order';
       
-      // Enhanced error logging with proper object stringification
-      console.error('Order submission error details:', {
+      // Enhanced error logging with proper object stringification and defensive checks
+      const errorContext = {
         message: error.message,
         stack: error.stack,
         response: error.response ? {
           status: error.response.status,
           data: error.response.data
-        } : null,
-        orderData: enhancedOrderData ? JSON.stringify(enhancedOrderData, null, 2) : null
-      });
+        } : null
+      };
+      
+      // Safely add order data if available - check if variable exists in scope
+      try {
+        if (typeof enhancedOrderData !== 'undefined' && enhancedOrderData) {
+          errorContext.orderData = JSON.stringify(enhancedOrderData, null, 2);
+        } else {
+          errorContext.orderData = 'Order data not available (error occurred before creation)';
+        }
+      } catch (jsonError) {
+        errorContext.orderData = 'Error serializing order data';
+      }
+      
+      console.error('Order submission error details:', errorContext);
       
       // Handle specific error types
       if (error.message?.includes('Order ID is required') || error.message?.includes('invalid order ID')) {
