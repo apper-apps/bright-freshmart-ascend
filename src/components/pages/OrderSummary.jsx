@@ -180,22 +180,39 @@ const loadOrderSummary = async () => {
       // Validate critical order data structure with detailed checks
       if (typeof orderData !== 'object') {
         throw new Error(`Invalid order data type received: ${typeof orderData}`);
-}
+      }
       
       if (!Object.prototype.hasOwnProperty.call(orderData, 'id') || orderData.id !== numericOrderId) {
-        throw new Error(`Order ID mismatch: expected ${numericOrderId}, received ${orderData.id}`);
+        throw new Error(`Order ID mismatch: expected ${numericOrderId}, received ${orderData.id || 'undefined'}`);
       }
 
+      // Validate and sanitize order data structure
       if (!orderData.items || !Array.isArray(orderData.items)) {
         console.warn(`Order ${numericOrderId} has invalid items data, initializing empty array`);
         orderData.items = [];
       }
 
-// Validate order totals and set defaults if missing
+      // Validate order totals and set defaults if missing
       if (!orderData.total || orderData.total <= 0) {
         console.warn(`Order ${numericOrderId} has invalid total, calculating from items`);
         orderData.total = orderData.items.reduce((sum, item) => 
           sum + ((item.price || 0) * (item.quantity || 0)), 0) + (orderData.deliveryCharge || 0);
+      }
+
+      // Ensure required fields have defaults
+      if (!orderData.status) {
+        console.warn(`Order ${numericOrderId} missing status, defaulting to 'pending'`);
+        orderData.status = 'pending';
+      }
+
+      if (!orderData.paymentStatus) {
+        console.warn(`Order ${numericOrderId} missing paymentStatus, defaulting to 'pending'`);
+        orderData.paymentStatus = 'pending';
+      }
+
+      if (!orderData.createdAt) {
+        console.warn(`Order ${numericOrderId} missing createdAt, using current date`);
+        orderData.createdAt = new Date().toISOString();
       }
 
       // Set order data with validated structure
@@ -203,22 +220,30 @@ const loadOrderSummary = async () => {
       console.log('OrderSummary: Order data loaded successfully:', {
         orderId: orderData.id,
         itemCount: orderData.items?.length || 0,
-        total: orderData.total
+        total: orderData.total,
+        status: orderData.status,
+        paymentStatus: orderData.paymentStatus
       });
 
       // Load vendor availability data if available
       try {
         if (orderData.vendor_availability) {
           setVendorAvailability(orderData.vendor_availability);
+          console.log('OrderSummary: Vendor availability data loaded');
         }
       } catch (vendorError) {
-        console.warn('Failed to load vendor availability data:', vendorError);
+        console.warn('OrderSummary: Failed to load vendor availability data:', vendorError);
         // Don't fail the entire load for vendor data
       }
 
       // Load price summary data if on price summary tab
       if (activeTab === 'price-summary') {
-        await loadPriceSummary();
+        try {
+          await loadPriceSummary();
+        } catch (priceError) {
+          console.warn('OrderSummary: Failed to load price summary:', priceError);
+          // Don't fail the entire load for price summary
+        }
       }
 
       toast.success('Order summary loaded successfully');
@@ -228,20 +253,38 @@ const loadOrderSummary = async () => {
         orderId: numericOrderId,
         error: error.message,
         stack: error.stack,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        errorType: error.name,
+        orderServiceAvailable: typeof orderService?.getById === 'function'
       });
       
-      const errorMessage = error.message || 'Failed to load order summary';
-      setError(errorMessage);
-      toast.error(errorMessage);
+      // Create user-friendly error message based on error type
+      let userErrorMessage = 'Failed to load order summary';
+      
+      if (error.message.includes('not found')) {
+        userErrorMessage = `Order #${numericOrderId} was not found. It may have been removed or the ID is incorrect.`;
+      } else if (error.message.includes('network') || error.message.includes('fetch')) {
+        userErrorMessage = 'Network error occurred while loading order. Please check your connection and try again.';
+      } else if (error.message.includes('mismatch')) {
+        userErrorMessage = 'Order data integrity issue detected. Please try refreshing the page.';
+      } else if (error.message.includes('Invalid order data type')) {
+        userErrorMessage = 'Server returned invalid order data. Please contact support if this persists.';
+      }
+      
+      setError(userErrorMessage);
+      toast.error(userErrorMessage);
       
       // Additional error reporting for debugging
       if (error.name === 'TypeError') {
-        console.error('OrderSummary: Possible service or data structure issue');
+        console.error('OrderSummary: Possible service or data structure issue - check orderService implementation');
       }
       if (error.message.includes('fetch') || error.message.includes('network')) {
-        console.error('OrderSummary: Network or API issue detected');
+        console.error('OrderSummary: Network or API issue detected - check service connectivity');
       }
+      if (error.message.includes('JSON') || error.message.includes('parse')) {
+        console.error('OrderSummary: Data parsing issue - check API response format');
+      }
+      
     } finally {
       setLoading(false);
     }

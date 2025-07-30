@@ -108,11 +108,45 @@ class OrderService {
       await delay(800);
       
       // Validate required fields
-      if (!orderData.customerId || !orderData.items || orderData.items.length === 0) {
+// Enhanced validation with flexible property checking
+      const hasCustomerInfo = orderData.customerId || orderData.customer_id || orderData.userId || orderData.user_id;
+      const hasItems = orderData.items && Array.isArray(orderData.items) && orderData.items.length > 0;
+      const hasDeliveryAddress = orderData.deliveryAddress || orderData.delivery_address;
+      
+      if (!hasCustomerInfo) {
         return {
           success: false,
-          error: 'Missing required order data',
-          data: null
+          error: 'Customer information is required for order creation',
+          data: null,
+          validationDetails: {
+            missingFields: ['customerId or customer_id'],
+            providedData: Object.keys(orderData)
+          }
+        };
+      }
+      
+      if (!hasItems) {
+        return {
+          success: false,
+          error: 'Order must contain at least one item',
+          data: null,
+          validationDetails: {
+            missingFields: ['items array'],
+            itemsProvided: orderData.items ? orderData.items.length : 0,
+            providedData: Object.keys(orderData)
+          }
+        };
+      }
+      
+      if (!hasDeliveryAddress) {
+        return {
+          success: false,
+          error: 'Delivery address is required for order creation',
+          data: null,
+          validationDetails: {
+            missingFields: ['deliveryAddress or delivery_address'],
+            providedData: Object.keys(orderData)
+          }
         };
       }
 
@@ -162,25 +196,60 @@ message: 'Order created successfully'
     } catch (error) {
       console.error('Error creating order:', error);
       
-      // Enhanced error logging with validation details
+// Enhanced error logging with comprehensive validation details
       const errorDetails = {
+        timestamp: new Date().toISOString(),
+        operation: 'createOrder',
         message: error.message,
         stack: error.stack,
         orderDataProvided: !!orderData,
         orderDataKeys: orderData ? Object.keys(orderData) : [],
-        validationErrors: []
+        orderDataType: typeof orderData,
+        validationErrors: [],
+        dataAnalysis: {
+          hasCustomerId: !!(orderData?.customerId || orderData?.customer_id || orderData?.userId || orderData?.user_id),
+          hasItems: !!(orderData?.items && Array.isArray(orderData.items) && orderData.items.length > 0),
+          hasDeliveryAddress: !!(orderData?.deliveryAddress || orderData?.delivery_address),
+          itemCount: orderData?.items ? orderData.items.length : 0,
+          totalValue: orderData?.total || 0
+        }
       };
       
-      // Add specific validation context
-      if (!orderData?.customerId) {
-        errorDetails.validationErrors.push('Missing customerId');
-      }
-      if (!orderData?.items || orderData.items.length === 0) {
-        errorDetails.validationErrors.push('Missing or empty items array');
+      // Add specific validation context with suggestions
+      if (!orderData?.customerId && !orderData?.customer_id && !orderData?.userId && !orderData?.user_id) {
+        errorDetails.validationErrors.push({
+          field: 'customer identification',
+          expected: 'customerId, customer_id, userId, or user_id',
+          received: 'none found'
+        });
       }
       
-      console.error('Order creation error details:', JSON.stringify(errorDetails, null, 2));
+      if (!orderData?.items || !Array.isArray(orderData.items) || orderData.items.length === 0) {
+        errorDetails.validationErrors.push({
+          field: 'items',
+          expected: 'non-empty array of order items',
+          received: orderData?.items ? `${typeof orderData.items} with ${orderData.items.length || 0} items` : 'not provided'
+        });
+      }
       
+      if (!orderData?.deliveryAddress && !orderData?.delivery_address) {
+        errorDetails.validationErrors.push({
+          field: 'delivery address',
+          expected: 'deliveryAddress or delivery_address object',
+          received: 'not provided'
+        });
+      }
+      
+      // Log comprehensive error details for debugging
+      console.error('Order Service - Creation failed with detailed analysis:', errorDetails);
+      
+      // Also log a simplified version for quick debugging
+      console.error('Order Service - Quick debug:', {
+        error: error.message,
+        hasData: !!orderData,
+        dataKeys: orderData ? Object.keys(orderData).join(', ') : 'none',
+        validationIssues: errorDetails.validationErrors.length
+      });
       return {
         success: false,
         error: error.message || 'Failed to create order',

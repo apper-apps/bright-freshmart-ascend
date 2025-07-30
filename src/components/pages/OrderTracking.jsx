@@ -40,16 +40,108 @@ const OrderTracking = () => {
   }, [autoRefreshEnabled, orderId]);
 
 const loadOrder = async (silentRefresh = false) => {
+    // Enhanced validation for orderId with comprehensive error recovery
+    if (!orderId || orderId.trim() === '') {
+      const errorMsg = 'Order ID is required to track order';
+      if (!silentRefresh) {
+        setError(errorMsg);
+        setLoading(false);
+        toast.error(errorMsg);
+      }
+      console.error('OrderTracking: Missing orderId parameter');
+      return;
+    }
+
+    // Validate orderId is numeric with detailed logging
+    const numericOrderId = parseInt(orderId);
+    if (isNaN(numericOrderId) || numericOrderId <= 0) {
+      const errorMsg = `Invalid order ID format: "${orderId}" - must be a positive integer`;
+      if (!silentRefresh) {
+        setError(errorMsg);
+        setLoading(false);
+        toast.error('Invalid order ID format');
+      }
+      console.error('OrderTracking: Invalid orderId format:', { orderId, numericOrderId });
+      return;
+    }
+
     try {
       if (!silentRefresh) {
         setLoading(true);
         setError(null);
       }
-      const data = await orderService.getById(parseInt(orderId));
-      setOrder(data);
-    } catch (err) {
+      
+      console.log('OrderTracking: Loading order data for ID:', numericOrderId);
+      
+      // Enhanced service call with comprehensive error handling
+      const orderData = await orderService.getById(numericOrderId);
+      
+      // Multiple validation layers to prevent blank screen
+      if (!orderData) {
+        throw new Error(`Order #${numericOrderId} not found in database`);
+      }
+
+      // Validate critical order data structure with detailed checks
+      if (typeof orderData !== 'object') {
+        throw new Error(`Invalid order data type received: ${typeof orderData}`);
+      }
+      
+      if (!Object.prototype.hasOwnProperty.call(orderData, 'id') || orderData.id !== numericOrderId) {
+        throw new Error(`Order ID mismatch: expected ${numericOrderId}, received ${orderData.id}`);
+      }
+
+      // Validate and sanitize order data structure
+      if (!orderData.items || !Array.isArray(orderData.items)) {
+        console.warn(`Order ${numericOrderId} has invalid items data, initializing empty array`);
+        orderData.items = [];
+      }
+
+      // Validate order totals and set defaults if missing
+      if (!orderData.total || orderData.total <= 0) {
+        console.warn(`Order ${numericOrderId} has invalid total, calculating from items`);
+        orderData.total = orderData.items.reduce((sum, item) => 
+          sum + ((item.price || 0) * (item.quantity || 0)), 0) + (orderData.deliveryCharge || 0);
+      }
+
+      // Set order data with validated structure
+      setOrder(orderData);
+      
+      console.log('OrderTracking: Order data loaded successfully:', {
+        orderId: orderData.id,
+        itemCount: orderData.items?.length || 0,
+        total: orderData.total,
+        status: orderData.status
+      });
+
       if (!silentRefresh) {
-        setError(err.message);
+        toast.success('Order data updated successfully');
+      }
+
+    } catch (error) {
+      console.error('OrderTracking: Critical error loading order:', {
+        orderId: numericOrderId,
+        error: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString(),
+        silentRefresh
+      });
+      
+      const errorMessage = error.message || 'Failed to load order details';
+      
+      if (!silentRefresh) {
+        setError(errorMessage);
+        toast.error(errorMessage);
+        
+        // Additional error reporting for debugging
+        if (error.name === 'TypeError') {
+          console.error('OrderTracking: Possible service or data structure issue');
+        }
+        if (error.message.includes('fetch') || error.message.includes('network')) {
+          console.error('OrderTracking: Network or API issue detected');
+        }
+      } else {
+        // For silent refresh, just log the error without showing UI
+        console.warn('OrderTracking: Silent refresh failed, continuing with existing data');
       }
     } finally {
       if (!silentRefresh) {
