@@ -57,8 +57,9 @@ class WebSocketService {
           if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
             this.scheduleReconnect();
           }
-        };
-this.connection.onerror = (error) => {
+};
+
+        this.connection.onerror = (error) => {
           console.error('WebSocket error:', error);
           this.isConnecting = false;
           
@@ -73,7 +74,7 @@ this.connection.onerror = (error) => {
           reject(this.serializeErrorSafely(error));
         };
 
-} catch (error) {
+      } catch (error) {
         this.isConnecting = false;
         reject(this.serializeErrorSafely(error));
       }
@@ -946,8 +947,7 @@ try {
                 JSON.parse(JSON.stringify(value));
               }
               result = value;
-            } catch (cloneError) {
-            } catch (cloneError) {
+} catch (cloneError) {
               result = {
                 __type: 'NonCloneablePrimitive',
                 value: String(value),
