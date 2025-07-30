@@ -1,9 +1,9 @@
 import ordersData from "../mockData/orders.json";
-import React from "react";
-import { paymentService } from "@/services/api/paymentService";
 import { notificationService } from "@/services/api/notificationService";
+import webSocketService from "@/services/api/websocketService";
+import { paymentService } from "@/services/api/paymentService";
 import { productService } from "@/services/api/productService";
-import Error from "@/components/ui/Error";
+
 class OrderService {
   constructor() {
     this.orders = [...ordersData];
@@ -261,58 +261,7 @@ if (orderData.paymentMethod === 'wallet') {
         };
         console.error('Wallet payment processing failed:', error);
         throw error;
-      }
-    }
-// Handle bank transfer verification
-    if (orderData.paymentMethod === 'bank' && orderData.paymentResult?.requiresVerification) {
-      newOrder.paymentStatus = 'pending_verification';
-      newOrder.status = 'payment_pending';
-    }
-    
-// Handle payment proof submissions with enhanced validation
-    if (orderData.paymentProof && (orderData.paymentMethod === 'bank' || orderData.paymentMethod === 'jazzcash' || orderData.paymentMethod === 'easypaisa')) {
-      newOrder.verificationStatus = 'pending';
-      newOrder.paymentProofSubmittedAt = new Date().toISOString();
-      
-      // Enhanced payment proof data validation and storage
-      const proofData = orderData.paymentProof;
-      
-      // Validate base64 data URL format
-      if (proofData.dataUrl && typeof proofData.dataUrl === 'string') {
-        if (!proofData.dataUrl.startsWith('data:image/') || !proofData.dataUrl.includes('base64,')) {
-          console.warn('Invalid payment proof data URL format, storing as-is');
-        }
-      }
-      
-      // Store the complete payment proof data with validation
-      newOrder.paymentProof = {
-        fileName: proofData.fileName || 'payment_proof.jpg',
-        fileSize: proofData.fileSize || 0,
-        uploadedAt: proofData.uploadedAt || new Date().toISOString(),
-        dataUrl: proofData.dataUrl || null,
-        storedAt: new Date().toISOString(),
-};
-      
-      // Validate proof data before adding backup reference
-      if (proofData && Object.prototype.hasOwnProperty.call(proofData, 'fileName')) {
-        newOrder.paymentProof.backupRef = `/uploads/${proofData.fileName}`;
-      } else {
-        newOrder.paymentProof.backupRef = null;
-      }
-    }
-    
-this.orders.push(newOrder);
-    
-    // Send email/SMS alerts to vendors for new orders with error handling
-    try {
-      if (notificationService?.sendVendorOrderAlert) {
-        await notificationService.sendVendorOrderAlert(newOrder);
-      } else {
-        console.warn('Notification service or sendVendorOrderAlert method not available');
-      }
-    } catch (alertError) {
-      console.warn('Vendor alert notification failed:', alertError);
-    }
+}
     
     // Real-time order sync - broadcast to vendors immediately
     if (typeof window !== 'undefined' && window.webSocketService) {
@@ -338,7 +287,7 @@ this.orders.push(newOrder);
       }
     }
     
-return { ...newOrder };
+    return { ...newOrder };
   }
 
   // Alias method for backward compatibility - fixes "DR.createOrder is not a function" error
@@ -583,9 +532,8 @@ async updateDeliveryStatus(orderId, deliveryStatus, actualDelivery = null) {
       if (error.message.includes('require verification') || error.message.includes('missing payment')) {
         throw error;
       }
-      
-      throw new Error('Unable to verify payment. Please try again or contact support.');
-}
+throw new Error('Unable to verify payment. Please try again or contact support.');
+    }
   }
 
   async getMonthlyRevenue() {

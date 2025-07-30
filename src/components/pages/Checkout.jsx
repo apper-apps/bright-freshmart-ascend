@@ -12,18 +12,19 @@ import Error from "@/components/ui/Error";
 import Empty from "@/components/ui/Empty";
 import Account from "@/components/pages/Account";
 import Cart from "@/components/pages/Cart";
-import Input from "@/components/atoms/Input";
-import Button from "@/components/atoms/Button";
+import { Input } from "@/components/atoms/Input";
+import { Button } from "@/components/atoms/Button";
 import { clearCart } from "@/store/cartSlice";
-import formatCurrency from "@/utils/currency";
+import { formatCurrency, calculateTotals } from "@/utils/currency";
 
 const Checkout = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   
-  // Redux state
+// Redux state
   const { items: cartItems, total: cartTotal } = useSelector(state => state.cart);
-// Local state
+  
+  // Local state
   const [loading, setLoading] = useState(false);
   const [orderSubmitting, setOrderSubmitting] = useState(false);
   const [paymentGateways, setPaymentGateways] = useState([]);
@@ -50,9 +51,10 @@ const Checkout = () => {
   });
   
   const [formErrors, setFormErrors] = useState({});
-  const [paymentProof, setPaymentProof] = useState(null);
+const [paymentProof, setPaymentProof] = useState(null);
   const [paymentProofPreview, setPaymentProofPreview] = useState(null);
-// Effects
+  
+  // Effects
   useEffect(() => {
     // Redirect if cart is empty
     if (!cartItems || cartItems.length === 0) {
@@ -118,9 +120,10 @@ const Checkout = () => {
       }
       if (!formData.nameOnCard.trim()) {
         errors.nameOnCard = 'Name on card is required';
-      }
+}
     }
-// Transaction ID validation for digital wallets
+
+    // Transaction ID validation for digital wallets
     if (['jazzcash', 'easypaisa'].includes(formData.paymentMethod)) {
       if (!formData.transactionId) {
         errors.transactionId = 'Transaction ID is required for digital wallet payments';
@@ -178,10 +181,11 @@ const handlePaymentProofUpload = async (file) => {
       const maxSize = 5 * 1024 * 1024; // 5MB
       if (file.size > maxSize) {
         throw new Error('File size must be less than 5MB');
-      }
+}
 
-const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/heic', 'image/heif'];
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/heic', 'image/heif'];
       if (!allowedTypes.includes(file.type)) {
+        throw new Error('Unsupported format - please use JPG/PNG');
         throw new Error('Unsupported format - please use JPG/PNG');
       }
 
@@ -294,12 +298,28 @@ const processPayment = async (orderData) => {
             orderData.id,
             { paymentProof, transactionId: formData.transactionId }
           );
-          break;
+break;
 
         case 'cash':
+          // Enhanced COD payment processing with comprehensive data
+          console.log('Processing COD payment for order:', orderData);
+          
           paymentResult = await paymentService.processCashOnDelivery({
             amount: cartTotal,
-            orderId: orderData.id
+            orderId: orderData.orderId || orderData.id,
+            orderNumber: orderData.id,
+            id: orderData.id,
+            paymentMethod: 'cash',
+            customerInfo: {
+              name: `${formData.firstName} ${formData.lastName}`,
+              phone: formData.phone,
+              email: formData.email
+            },
+            deliveryAddress: {
+              address: formData.address,
+              city: formData.city,
+              postalCode: formData.postalCode
+            }
           });
           break;
 
@@ -310,6 +330,18 @@ const processPayment = async (orderData) => {
       return paymentResult;
     } catch (error) {
       console.error('Payment processing error:', error);
+      
+      // Enhanced error context for COD payments
+      if (error.message?.includes('Order ID is required') && formData.paymentMethod === 'cash') {
+        console.error('COD Payment Error Context:', {
+          orderData: orderData,
+          formDataMethod: formData.paymentMethod,
+          cartTotal: cartTotal,
+          orderHasId: !!orderData.id
+        });
+        error.message = 'Cash on Delivery payment failed. Please try again or contact support.';
+      }
+      
       throw error;
     }
   };
@@ -345,24 +377,48 @@ const processPayment = async (orderData) => {
           method: formData.paymentMethod,
           amount: cartTotal
         },
-        status: 'pending'
+status: 'pending'
       };
 
-      // Create order
-      const createdOrder = await orderService.createOrder(orderData);
+      // Enhanced order data preparation with payment method context
+      const enhancedOrderData = {
+        ...orderData,
+        paymentMethod: formData.paymentMethod,
+        transactionId: formData.transactionId || null,
+        paymentProof: paymentProof || null,
+        totalAmount: cartTotal,
+        total: cartTotal,
+        deliveryAddress: {
+          name: `${formData.firstName} ${formData.lastName}`,
+          address: formData.address,
+          city: formData.city,
+          postalCode: formData.postalCode,
+          phone: formData.phone,
+          email: formData.email
+        }
+      };
+
+      // Create order with enhanced data
+      const createdOrder = await orderService.createOrder(enhancedOrderData);
 
       // Process payment
-// Validate order creation was successful with proper ID
+      // Enhanced order validation with detailed error context
       if (!createdOrder || !createdOrder.id || typeof createdOrder.id !== 'number') {
+        console.error('Order creation validation failed:', {
+          createdOrder: createdOrder,
+          hasId: !!createdOrder?.id,
+          idType: typeof createdOrder?.id,
+          idValue: createdOrder?.id
+        });
         throw new Error('Order creation failed - invalid order ID received');
       }
 
       console.log('Order created successfully with ID:', createdOrder.id);
 
-      // Process payment with validated order
-      const paymentResult = await processPayment(createdOrder);
+      // Process payment with validated order and comprehensive data
+      const paymentResult = await processPayment({...createdOrder, ...enhancedOrderData});
 
-      // Validate payment result before updating order
+// Validate payment result before updating order
       if (!paymentResult) {
         throw new Error('Payment processing failed - no result received');
       }
@@ -470,9 +526,8 @@ const processPayment = async (orderData) => {
             </Button>
             <h1 className="text-3xl font-bold gradient-text">Checkout</h1>
           </div>
-          
-          {/* Reservation Timer */}
-<div className="flex items-center space-x-2 bg-green-50 px-4 py-2 rounded-lg">
+{/* Reservation Timer */}
+          <div className="flex items-center space-x-2 bg-green-50 px-4 py-2 rounded-lg">
             <CheckCircle className="w-5 h-5 text-green-600" />
             <span className="text-green-600 font-medium">
               Secure Checkout - Complete your order
@@ -481,9 +536,9 @@ const processPayment = async (orderData) => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Form */}
+{/* Main Form */}
           <div className="lg:col-span-2">
-<form id="checkout-form" onSubmit={handleSubmitOrder} className="space-y-8">
+            <form id="checkout-form" onSubmit={handleSubmitOrder} className="space-y-8">
               {/* Customer Information */}
               <div className="card p-6">
                 <div className="flex items-center space-x-3 mb-6">
@@ -594,10 +649,11 @@ const processPayment = async (orderData) => {
                 <div className="flex items-center space-x-3 mb-6">
                   <CreditCard className="w-6 h-6 text-primary" />
                   <h2 className="text-xl font-semibold">Payment Information</h2>
-                </div>
+</div>
 
-<PaymentMethod
+                <PaymentMethod
                   selectedMethod={formData.paymentMethod}
+                  onMethodChange={handlePaymentMethodChange}
                   onMethodChange={handlePaymentMethodChange}
                   paymentGateways={paymentGateways}
                 />
@@ -649,9 +705,9 @@ const processPayment = async (orderData) => {
                       error={formErrors.transactionId}
                       placeholder="Enter transaction ID from your payment app"
                       required
-                    />
+/>
 
-{/* Payment Proof Upload */}
+                    {/* Payment Proof Upload */}
                     <div className="space-y-4">
                       <label className="block text-sm font-medium text-gray-700">
                         Payment Proof <span className="text-red-500">*</span>
@@ -912,17 +968,17 @@ const processPayment = async (orderData) => {
                   Your payment information is encrypted and secure
                 </p>
               </div>
-
-              {/* Place Order Button */}
-<Button
+{/* Place Order Button */}
+              <Button
                 type="submit"
+                form="checkout-form"
                 form="checkout-form"
                 onClick={handleSubmitOrder}
                 disabled={orderSubmitting || loading}
                 className="w-full mt-6 btn-primary"
-                size="lg"
+size="lg"
               >
-{orderSubmitting ? (
+                {orderSubmitting ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin mr-2" />
                     Processing Order...

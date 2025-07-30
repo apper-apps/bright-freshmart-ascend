@@ -62,20 +62,37 @@ async processPayment(transactionId, paymentData) {
     if (!paymentData) {
       throw new Error('Payment data is required');
     }
-    
-    // Validate required payment data fields
-    const requiredFields = ['orderId', 'paymentMethod', 'amount'];
+// Enhanced payment data validation with defensive checks
+    const requiredFields = ['paymentMethod', 'amount'];
     const missingFields = requiredFields.filter(field => !paymentData[field]);
     
     if (missingFields.length > 0) {
       throw new Error(`Missing required payment fields: ${missingFields.join(', ')}`);
     }
     
-    // Special validation for COD payments
-    if (paymentData.paymentMethod === 'COD' || paymentData.paymentMethod === 'cash_on_delivery') {
-      if (!paymentData.orderId) {
-        throw new Error('Order ID is required for COD payments');
+    // Enhanced COD payment validation with better error handling
+    if (paymentData.paymentMethod === 'COD' || paymentData.paymentMethod === 'cash_on_delivery' || paymentData.paymentMethod === 'cash') {
+      // Flexible order ID validation - check multiple possible fields
+      const orderId = paymentData.orderId || paymentData.id || paymentData.orderNumber || paymentData.transactionOrderId;
+      
+      if (!orderId) {
+        console.error('COD Payment Error: Missing order ID in payment data:', {
+          paymentData: { ...paymentData, amount: paymentData.amount },
+          availableFields: Object.keys(paymentData)
+        });
+        throw new Error('Order ID is required for COD payments. Please ensure order is created before processing payment.');
       }
+      
+      // Validate order ID format
+      const numericOrderId = parseInt(orderId);
+      if (isNaN(numericOrderId) || numericOrderId <= 0) {
+        console.error('COD Payment Error: Invalid order ID format:', orderId);
+        throw new Error('Invalid order ID format for COD payment. Order ID must be a positive number.');
+      }
+      
+      // Store validated order ID back to payment data
+      paymentData.orderId = numericOrderId;
+      
       if (!paymentData.customerInfo) {
         throw new Error('Customer information is required for COD payments');
       }
