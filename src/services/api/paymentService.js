@@ -1007,8 +1007,92 @@ delay(ms = 300) {
     return { ...payment };
   }
 
-  // Payment Proof Management
-  async uploadPaymentProof(paymentId, proofData) {
+// Payment Proof Management
+  async uploadPaymentProof(file) {
+    await this.delay(800);
+    
+    // Enhanced file validation for customer uploads
+    if (!file) {
+      throw new Error('Please select a file to upload');
+    }
+
+    // Validate file type with customer-friendly messages
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/heic', 'image/heif'];
+    if (!allowedTypes.includes(file.type)) {
+      const supportedFormats = allowedTypes.map(type => type.split('/')[1].toUpperCase()).join(', ');
+      throw new Error(`Unsupported format. Please use: ${supportedFormats}\n\nNeed help? Contact support@freshmart.pk`);
+    }
+
+    // File size validation
+    if (file.size > 5 * 1024 * 1024) {
+      throw new Error('File too large. Please compress your image to under 5MB\n\nTip: Use your phone\'s camera app to resize the image');
+    }
+
+    // Simulate upload process
+    const uploadResult = {
+      id: Date.now(),
+      fileName: file.name,
+      fileType: file.type,
+      fileSize: file.size,
+      uploadedAt: new Date().toISOString(),
+      status: 'uploaded',
+      url: URL.createObjectURL(file) // For preview purposes
+    };
+
+    return uploadResult;
+  }
+
+  async testUploadValidation(file) {
+    await this.delay(500);
+    
+    try {
+      // Test file without uploading
+      if (!file) {
+        return { valid: false, error: 'No file selected' };
+      }
+
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/heic', 'image/heif'];
+      if (!allowedTypes.includes(file.type)) {
+        return { 
+          valid: false, 
+          error: `File type not supported. Please use JPG, PNG, or HEIC format.\n\nCurrent file: ${file.type}` 
+        };
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        const sizeMB = (file.size / 1024 / 1024).toFixed(1);
+        return { 
+          valid: false, 
+          error: `File too large (${sizeMB}MB). Please compress to under 5MB.\n\nTip: Take a new photo with lower resolution` 
+        };
+      }
+
+      // Check if image is too small (might be unclear)
+      if (file.size < 50 * 1024) { // Less than 50KB
+        return { 
+          valid: false, 
+          error: 'Image file seems too small. Please ensure the screenshot is clear and readable.' 
+        };
+      }
+
+      return { 
+        valid: true, 
+        message: 'Image looks good! Ready for upload.',
+        fileInfo: {
+          name: file.name,
+          size: `${(file.size / 1024 / 1024).toFixed(1)}MB`,
+          type: file.type
+        }
+      };
+    } catch (error) {
+      return { 
+        valid: false, 
+        error: 'Unable to validate file. Please try again or contact support.' 
+      };
+    }
+  }
+
+  async uploadPaymentProofForVendor(paymentId, proofData) {
     await this.delay(600);
     
     if (!this.validateFinanceManagerRole()) {
@@ -1053,7 +1137,6 @@ const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/heic', 'ima
     payment.proofStatus = 'uploaded';
     payment.proofId = proof.Id;
     payment.updatedAt = new Date().toISOString();
-
     return { ...proof };
   }
 

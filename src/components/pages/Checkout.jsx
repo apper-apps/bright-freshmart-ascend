@@ -166,7 +166,7 @@ const handlePaymentMethodChange = (method) => {
     }
   };
 
-  const handlePaymentProofUpload = async (file) => {
+const handlePaymentProofUpload = async (file) => {
     try {
       setLoading(true);
       
@@ -201,6 +201,62 @@ const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/heic', 'ima
     } catch (error) {
       console.error('Payment proof upload error:', error);
       toast.error(error.message || 'Failed to upload payment proof');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTestUpload = async (file) => {
+    try {
+      setLoading(true);
+      
+      // Test file validation without actual upload
+      const testResult = await paymentService.testUploadValidation(file);
+      
+      if (testResult.valid) {
+        toast.success('✅ Image is valid and ready for upload!');
+        
+        // Show preview
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          setPaymentProofPreview(e.target?.result);
+        };
+        reader.readAsDataURL(file);
+        
+        return true;
+      } else {
+        throw new Error(testResult.error || 'Image validation failed');
+      }
+    } catch (error) {
+      console.error('Test upload error:', error);
+      
+      // Check for persistent upload issues and suggest WhatsApp
+      const uploadErrors = JSON.parse(localStorage.getItem('checkout-upload-errors') || '[]');
+      uploadErrors.push({
+        timestamp: Date.now(),
+        error: error.message,
+        fileType: file?.type,
+        fileSize: file?.size
+      });
+      
+      // Keep only last 5 errors
+      const recentErrors = uploadErrors.slice(-5);
+      localStorage.setItem('checkout-upload-errors', JSON.stringify(recentErrors));
+      
+      // If 3+ errors in last 10 minutes, suggest WhatsApp
+      const tenMinutesAgo = Date.now() - (10 * 60 * 1000);
+      const recentErrorCount = recentErrors.filter(err => err.timestamp > tenMinutesAgo).length;
+      
+      if (recentErrorCount >= 3) {
+        toast.error(
+          `${error.message}\n\nHaving trouble? Send your payment proof via WhatsApp: +92-300-1234567`,
+          { duration: 8000 }
+        );
+      } else {
+        toast.error(error.message || 'Test upload failed');
+      }
+      
+      return false;
     } finally {
       setLoading(false);
     }
@@ -336,11 +392,10 @@ const processPayment = async (orderData) => {
         errorMessage = error.message;
       }
 
-      // Show customer support message for persistent failures
+// Show customer support message for persistent failures
       if (error.isUploadError || errorMessage.includes('upload') || errorMessage.includes('proof')) {
-        errorMessage += '\n\nIf this issue persists, contact support@freshmart.pk';
+        errorMessage += '\n\nIf upload issues persist, send payment proof via WhatsApp: +92-300-1234567';
       }
-
       toast.error(errorMessage);
     } finally {
       setOrderSubmitting(false);
@@ -574,20 +629,21 @@ const processPayment = async (orderData) => {
                       required
                     />
 
-                    {/* Payment Proof Upload */}
-                    <div className="space-y-2">
+{/* Payment Proof Upload */}
+                    <div className="space-y-4">
                       <label className="block text-sm font-medium text-gray-700">
                         Payment Proof <span className="text-red-500">*</span>
                       </label>
-<div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                      
+                      {/* Upload Zone */}
+                      <div className="upload-zone-enhanced border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
                         <input
                           type="file"
                           accept="image/*"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file) {
-                              handlePaymentProofUpload(file);
-                              // Create preview
+                              // Create preview first
                               const reader = new FileReader();
                               reader.onload = (e) => {
                                 setPaymentProofPreview(e.target?.result);
@@ -601,21 +657,123 @@ const processPayment = async (orderData) => {
                         <label htmlFor="payment-proof" className="cursor-pointer">
                           <ApperIcon name="Upload" size={32} className="mx-auto text-gray-400 mb-2" />
                           <p className="text-sm text-gray-600">
-                            Upload payment screenshot (JPG, PNG)
+                            Upload payment screenshot (JPG, PNG, HEIC)
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Max 5MB • Preview before uploading
                           </p>
                         </label>
                       </div>
+                      
+                      {/* Preview Section */}
+                      {paymentProofPreview && (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-gray-700">Preview:</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPaymentProofPreview(null);
+                                setPaymentProof(null);
+                                document.getElementById('payment-proof').value = '';
+                              }}
+                              className="text-red-600 hover:text-red-800 text-sm"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                          
+                          <div className="image-preview-container">
+                            <img
+                              src={paymentProofPreview}
+                              alt="Payment proof preview"
+                              className="max-w-full h-48 object-cover rounded-lg border"
+                            />
+                          </div>
+                          
+                          {/* Action Buttons */}
+                          <div className="flex space-x-3">
+                            <Button
+                              type="button"
+                              onClick={async () => {
+                                const fileInput = document.getElementById('payment-proof');
+                                const file = fileInput.files?.[0];
+                                if (file) {
+                                  const isValid = await handleTestUpload(file);
+                                  if (isValid) {
+                                    // Test passed, ready for actual upload
+                                  }
+                                }
+                              }}
+                              variant="outline"
+                              size="small"
+                              disabled={loading}
+                              className="flex-1"
+                            >
+                              {loading ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                  Testing...
+                                </>
+                              ) : (
+                                <>
+                                  <ApperIcon name="TestTube" size={16} className="mr-2" />
+                                  Test Upload
+                                </>
+                              )}
+                            </Button>
+                            
+                            <Button
+                              type="button"
+                              onClick={async () => {
+                                const fileInput = document.getElementById('payment-proof');
+                                const file = fileInput.files?.[0];
+                                if (file) {
+                                  await handlePaymentProofUpload(file);
+                                }
+                              }}
+                              variant="primary"
+                              size="small"
+                              disabled={loading || !paymentProofPreview}
+                              className="flex-1"
+                            >
+                              {loading ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                                  Uploading...
+                                </>
+                              ) : (
+                                <>
+                                  <ApperIcon name="Upload" size={16} className="mr-2" />
+                                  Upload
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                          
+                          {/* Upload Success Indicator */}
+                          {paymentProof && (
+                            <div className="upload-success p-3 rounded-lg">
+                              <div className="flex items-center space-x-2">
+                                <CheckCircle className="w-5 h-5 text-green-600" />
+                                <span className="text-sm text-green-700 font-medium">
+                                  Payment proof uploaded successfully!
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* Upload Help */}
+                      <div className="text-xs text-gray-500 space-y-1">
+                        <p>• Make sure transaction details are clearly visible</p>
+                        <p>• Include date, time, and amount in the screenshot</p>
+                        <p>• Use "Test Upload" to verify your image before submitting</p>
+                      </div>
+                      
                       {formErrors.paymentProof && (
                         <p className="text-sm text-red-600">{formErrors.paymentProof}</p>
-                      )}
-                      {paymentProofPreview && (
-                        <div className="mt-2">
-                          <img
-                            src={paymentProofPreview}
-                            alt="Payment proof preview"
-                            className="max-w-full h-32 object-cover rounded border"
-                          />
-                        </div>
                       )}
                     </div>
                   </div>

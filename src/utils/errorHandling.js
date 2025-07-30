@@ -54,20 +54,22 @@ static shouldRetry(error, attemptCount = 0, maxRetries = 3, context = '') {
     const message = error.message?.toLowerCase() || '';
     
     // Upload-specific retry logic with customer support considerations
-    if (context.includes('upload') || context.includes('file')) {
+if (context.includes('upload') || context.includes('file')) {
       // More aggressive retry for upload operations
       const uploadRetryableTypes = ['network', 'timeout', 'server'];
       
       if (uploadRetryableTypes.includes(type)) {
         // Don't retry file format or size errors - direct to support
         if (message.includes('format') || message.includes('size') || message.includes('type')) {
-          // Flag for customer support
+          // Flag for customer support with WhatsApp fallback
           localStorage.setItem('checkout-upload-error', JSON.stringify({
             type: 'format_size_error',
             message: error.message,
             timestamp: Date.now(),
             needsSupport: true,
-            supportContact: 'support@freshmart.pk'
+            supportContact: 'support@freshmart.pk',
+            whatsappFallback: '+92-300-1234567',
+            suggestedAction: 'Send payment proof via WhatsApp if upload continues to fail'
           }));
           return false;
         }
@@ -79,7 +81,9 @@ static shouldRetry(error, attemptCount = 0, maxRetries = 3, context = '') {
             message: error.message,
             timestamp: Date.now(),
             needsAlternatives: true,
-            supportContact: 'support@freshmart.pk'
+            supportContact: 'support@freshmart.pk',
+            whatsappFallback: '+92-300-1234567',
+            alternativeMethod: 'WhatsApp payment proof submission'
           }));
           return false;
         }
@@ -174,19 +178,22 @@ static getCustomerSupportGuidance(error, context = '') {
     };
     
     if (context.includes('upload')) {
-      guidance.showFAQ = true;
+guidance.showFAQ = true;
       guidance.showSamples = true;
+      guidance.whatsappFallback = '+92-300-1234567';
       
       if (message.includes('format') || message.includes('heic') || message.includes('unsupported')) {
         guidance.showChat = true;
         guidance.showSamples = true;
         guidance.priority = 'high';
         guidance.recommendedAction = 'try_different_format';
+        guidance.whatsappMessage = 'Having trouble with image format? Send your payment proof directly via WhatsApp';
       } else if (message.includes('size') || message.includes('large')) {
         guidance.showChat = true;
         guidance.showFAQ = true;
         guidance.priority = 'medium';
         guidance.recommendedAction = 'compress_image';
+        guidance.whatsappMessage = 'Image too large? Send it via WhatsApp and we\'ll process it for you';
       } else if (type === 'network' || type === 'timeout') {
         guidance.showWhatsApp = true;
         guidance.showEmail = true;
