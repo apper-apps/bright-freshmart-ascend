@@ -194,15 +194,27 @@ async processBankTransfer(amount, orderId, bankDetails) {
 }
 
   // Cash on Delivery Payment Processing
+// Cash on Delivery Payment Processing
   async processCashOnDelivery(amount, orderId, deliveryDetails = {}) {
     try {
-      // Validate inputs
+      // Enhanced input validation with specific error messages
       if (!amount || amount <= 0) {
-        throw new Error('Invalid payment amount');
+        throw new Error('Invalid payment amount. Amount must be greater than 0.');
       }
       
-      if (!orderId) {
-        throw new Error('Order ID is required');
+      if (!orderId || (typeof orderId === 'string' && orderId.trim() === '')) {
+        throw new Error('Order ID is required and cannot be empty.');
+      }
+
+      // Validate orderId format (should be string or number)
+      if (typeof orderId !== 'string' && typeof orderId !== 'number') {
+        throw new Error('Order ID must be a valid string or number.');
+      }
+
+      // Validate amount is a valid number
+      const numericAmount = parseFloat(amount);
+      if (isNaN(numericAmount) || numericAmount <= 0) {
+        throw new Error('Payment amount must be a valid positive number.');
       }
 
       await this.delay();
@@ -211,24 +223,25 @@ async processBankTransfer(amount, orderId, bankDetails) {
         id: this.getNextId(),
         transactionId: this.generateTransactionId(),
         reference: this.generateReference(),
-        orderId,
+        orderId: String(orderId), // Ensure orderId is stored as string
         type: 'cash_on_delivery',
-        amount: parseFloat(amount),
+        amount: numericAmount,
         fee: 0, // No processing fee for COD
-        netAmount: parseFloat(amount),
+        netAmount: numericAmount,
         status: 'pending', // Will be updated to 'completed' when delivered
         currency: 'PKR',
         paymentMethod: 'Cash on Delivery',
         deliveryDetails: {
-          address: deliveryDetails.address || '',
-          city: deliveryDetails.city || '',
-          phone: deliveryDetails.phone || '',
-          notes: deliveryDetails.notes || ''
+          address: deliveryDetails?.address || '',
+          city: deliveryDetails?.city || '',
+          phone: deliveryDetails?.phone || '',
+          notes: deliveryDetails?.notes || ''
         },
         metadata: {
           collectionMethod: 'delivery',
           requiresPhysicalPayment: true,
-          estimatedDelivery: deliveryDetails.estimatedDelivery || null
+          estimatedDelivery: deliveryDetails?.estimatedDelivery || null,
+          validatedAt: new Date().toISOString()
         },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
@@ -242,21 +255,27 @@ async processBankTransfer(amount, orderId, bankDetails) {
         transaction,
         message: 'Cash on Delivery order prepared successfully',
         instructions: 'Please have the exact amount ready when our delivery person arrives.',
-        estimatedDelivery: deliveryDetails.estimatedDelivery || '2-3 business days'
+        estimatedDelivery: deliveryDetails?.estimatedDelivery || '2-3 business days'
       };
 
     } catch (error) {
       console.error('COD Processing Error:', error);
       
-      // Log the error transaction
+      // Enhanced error logging with more context
       const errorTransaction = {
         id: this.getNextId(),
         transactionId: this.generateTransactionId(),
-        orderId,
+        orderId: orderId ? String(orderId) : null,
         type: 'cash_on_delivery',
         amount: parseFloat(amount) || 0,
         status: 'failed',
         error: error.message,
+        errorCode: error.code || 'COD_PROCESSING_ERROR',
+        errorContext: {
+          originalAmount: amount,
+          originalOrderId: orderId,
+          deliveryDetails: deliveryDetails
+        },
         createdAt: new Date().toISOString()
       };
       
@@ -265,8 +284,9 @@ async processBankTransfer(amount, orderId, bankDetails) {
       return {
         success: false,
         error: error.message,
+        errorCode: error.code || 'COD_PROCESSING_ERROR',
         transaction: errorTransaction
-      };
+};
     }
   }
 

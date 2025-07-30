@@ -229,21 +229,38 @@ const Orders = () => {
                   </div>
                 )}
                 <div className="text-right sm:text-left sm:mt-2">
-                  <p className="text-lg sm:text-xl font-bold gradient-text">
+<p className="text-lg sm:text-xl font-bold gradient-text">
                     {(() => {
-                      // Calculate subtotal if order total is missing or zero
-                      if (!order?.total || order.total === 0) {
-                        const itemsSubtotal = order?.items?.reduce((sum, item) => {
-                          return sum + ((item.price || 0) * (item.quantity || 0));
-                        }, 0) || 0;
-                        const deliveryCharge = order?.deliveryCharge || 0;
-                        return formatCurrency(itemsSubtotal + deliveryCharge);
+                      try {
+                        // Enhanced null safety and calculation logic
+                        if (!order || typeof order !== 'object') {
+                          return formatCurrency(0);
+                        }
+
+                        // Calculate subtotal if order total is missing or zero
+                        if (!order.total || order.total === 0) {
+                          const itemsSubtotal = Array.isArray(order.items) 
+                            ? order.items.reduce((sum, item) => {
+                                if (!item || typeof item !== 'object') return sum;
+                                const price = parseFloat(item.price) || 0;
+                                const quantity = parseInt(item.quantity) || 0;
+                                return sum + (price * quantity);
+                              }, 0) 
+                            : 0;
+                          
+                          const deliveryCharge = parseFloat(order.deliveryCharge) || 0;
+                          return formatCurrency(itemsSubtotal + deliveryCharge);
+                        }
+                        
+                        return formatCurrency(parseFloat(order.total) || 0);
+                      } catch (error) {
+                        console.error('Error calculating order total:', error);
+                        return formatCurrency(0);
                       }
-                      return formatCurrency(order.total);
                     })()}
                   </p>
                   <p className="text-xs sm:text-sm text-gray-600">
-                    {order?.items?.length || 0} items
+                    {Array.isArray(order?.items) ? order.items.length : 0} items
                   </p>
                 </div>
               </div>
@@ -637,32 +654,49 @@ const Orders = () => {
               
               {/* Order Items Preview */}
               <div className="mt-4 pt-4 border-t border-gray-200">
-                <h4 className="text-sm font-medium text-gray-900 mb-3">Items ({order?.items?.length || 0})</h4>
+<h4 className="text-sm font-medium text-gray-900 mb-3">
+                  Items ({Array.isArray(order?.items) ? order.items.length : 0})
+                </h4>
                 <div className="space-y-2">
-                  {order?.items?.slice(0, 3)?.map((item, index) => (
-                    <div key={index} className="flex items-center space-x-2">
-                      <span className="text-sm text-gray-600">{item.quantity}x</span>
-                      <span className="text-sm font-medium text-gray-900 truncate">
-                        {item.name}
-                      </span>
-                    </div>
-                  ))}
-                  {order?.items?.length > 3 && (
-                    <div className="text-sm text-gray-600">
-                      +{order.items.length - 3} more items
+                  {Array.isArray(order?.items) && order.items.length > 0 ? (
+                    <>
+                      {order.items.slice(0, 3).map((item, index) => {
+                        if (!item || typeof item !== 'object') return null;
+                        return (
+                          <div key={item.id || index} className="flex items-center space-x-2">
+                            <span className="text-sm text-gray-600">
+                              {parseInt(item.quantity) || 0}x
+                            </span>
+                            <span className="text-sm font-medium text-gray-900 truncate">
+                              {item.name || 'Unknown Item'}
+                            </span>
+                          </div>
+                        );
+                      }).filter(Boolean)}
+                      {order.items.length > 3 && (
+                        <div className="text-sm text-gray-600">
+                          +{order.items.length - 3} more items
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-sm text-gray-500 italic">
+                      No items found
                     </div>
                   )}
                 </div>
               </div>
               {/* Mobile-responsive order actions with swipe actions */}
-              <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600">
+<div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600">
                 <div className="flex items-center space-x-1">
                   <ApperIcon name="MapPin" size={14} />
-                  <span>{order.deliveryAddress.city}</span>
+                  <span>{order?.deliveryAddress?.city || 'Not specified'}</span>
                 </div>
                 <div className="flex items-center space-x-1">
                   <ApperIcon name="CreditCard" size={14} />
-                  <span className="capitalize">{order.paymentMethod.replace('_', ' ')}</span>
+                  <span className="capitalize">
+                    {order?.paymentMethod ? order.paymentMethod.replace('_', ' ') : 'Not specified'}
+                  </span>
                 </div>
               </div>
               

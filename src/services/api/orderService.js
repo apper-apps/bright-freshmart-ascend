@@ -171,22 +171,28 @@ providedData: Object.keys(orderData),
       const deliveryFee = orderData.deliveryMethod === 'delivery' ? 50000 : 0;
       const total = subtotal + tax + deliveryFee;
 
-const newOrder = {
-        id: generateId(),
+// Generate and validate order ID
+      const orderId = generateId();
+      if (!orderId) {
+        throw new Error('Failed to generate order ID');
+      }
+
+      const newOrder = {
+        id: orderId,
         orderNumber: `ORD-${Date.now()}`,
         customerId: orderData.customerId || orderData.customer_id || generateId(), // Generate if not provided
         customerInfo: orderData.customerInfo || orderData.customer, // Handle both structures
         customer: orderData.customer, // Keep original customer object
-        items: orderData.items,
-        subtotal,
-        tax,
-        deliveryFee,
-        total,
+        items: orderData.items || [],
+        subtotal: subtotal || 0,
+        tax: tax || 0,
+        deliveryFee: deliveryFee || 0,
+        total: total || 0,
         status: 'pending',
         paymentStatus: 'pending',
-        paymentMethod: orderData.paymentMethod,
-        deliveryMethod: orderData.deliveryMethod,
-        deliveryAddress: orderData.deliveryAddress,
+        paymentMethod: orderData.paymentMethod || 'cash',
+        deliveryMethod: orderData.deliveryMethod || 'standard',
+        deliveryAddress: orderData.deliveryAddress || {},
         notes: orderData.notes || '',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -199,12 +205,21 @@ const newOrder = {
         ]
       };
 
+      // Validate order before saving
+      if (!newOrder.id) {
+        throw new Error('Order ID validation failed');
+      }
+
+      if (!Array.isArray(newOrder.items) || newOrder.items.length === 0) {
+        throw new Error('Order must contain at least one item');
+      }
+
       this.orders.push(newOrder);
 
       return {
         success: true,
         data: newOrder,
-message: 'Order created successfully'
+        message: 'Order created successfully'
       };
     } catch (error) {
       console.error('Error creating order:', error);
