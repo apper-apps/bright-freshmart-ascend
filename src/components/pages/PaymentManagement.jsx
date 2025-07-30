@@ -7,7 +7,7 @@ import Button from "@/components/atoms/Button";
 import Input from "@/components/atoms/Input";
 import Error from "@/components/ui/Error";
 import Loading from "@/components/ui/Loading";
-import { orderService } from "@/services/api/orderService";
+import orderService from "@/services/api/orderService";
 import { paymentService } from "@/services/api/paymentService";
 
 // Payment Gateway Management Component
