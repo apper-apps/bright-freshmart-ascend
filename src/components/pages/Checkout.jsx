@@ -299,27 +299,49 @@ const processPayment = async (orderData) => {
           );
 break;
 
-        case 'cash':
-          // Enhanced COD payment processing with comprehensive data
+case 'cash':
+          // Enhanced COD payment processing with comprehensive data validation
           console.log('Processing COD payment for order:', orderData);
           
-          paymentResult = await paymentService.processCashOnDelivery({
+          // Validate order data before processing payment
+          if (!orderData || !orderData.id) {
+            console.error('COD Payment Error - Invalid order data:', {
+              orderData,
+              hasOrderData: !!orderData,
+              hasOrderId: !!(orderData?.id),
+              orderDataKeys: orderData ? Object.keys(orderData) : []
+            });
+            throw new Error('Invalid order data for COD payment processing.');
+          }
+
+          // Prepare comprehensive payment data object
+          const codPaymentData = {
             amount: cartTotal,
-            orderId: orderData.orderId || orderData.id,
-            orderNumber: orderData.id,
+            orderId: orderData.id,
+            orderNumber: orderData.orderNumber || orderData.id,
             id: orderData.id,
             paymentMethod: 'cash',
             customerInfo: {
-              name: `${formData.firstName} ${formData.lastName}`,
+              name: `${formData.firstName} ${formData.lastName}`.trim(),
               phone: formData.phone,
               email: formData.email
             },
             deliveryAddress: {
+              name: `${formData.firstName} ${formData.lastName}`.trim(),
               address: formData.address,
               city: formData.city,
-              postalCode: formData.postalCode
-            }
-          });
+              postalCode: formData.postalCode,
+              phone: formData.phone,
+              email: formData.email
+            },
+            // Additional context for payment processing
+            totalAmount: cartTotal,
+            orderData: orderData
+          };
+
+          console.log('COD Payment Data prepared:', codPaymentData);
+          
+          paymentResult = await paymentService.processCashOnDelivery(codPaymentData);
           break;
 
         default:
@@ -331,14 +353,20 @@ break;
       console.error('Payment processing error:', error);
       
       // Enhanced error context for COD payments
-      if (error.message?.includes('Order ID is required') && formData.paymentMethod === 'cash') {
-        console.error('COD Payment Error Context:', {
+if (error.message?.includes('Order ID is required') && formData.paymentMethod === 'cash') {
+        console.error('COD Payment Error - Comprehensive Context:', {
+          errorMessage: error.message,
+          errorStack: error.stack,
           orderData: orderData,
           formDataMethod: formData.paymentMethod,
           cartTotal: cartTotal,
-          orderHasId: !!orderData.id
+          orderHasId: !!orderData?.id,
+          orderIdValue: orderData?.id,
+          orderIdType: typeof orderData?.id,
+          orderDataKeys: orderData ? Object.keys(orderData) : [],
+          paymentServiceCall: 'processCashOnDelivery with object parameter'
         });
-        error.message = 'Cash on Delivery payment failed. Please try again or contact support.';
+        error.message = 'Cash on Delivery payment processing failed. Please verify your order details and try again, or contact our support team for assistance.';
       }
       
       throw error;

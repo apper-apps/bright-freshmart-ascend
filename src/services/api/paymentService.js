@@ -195,20 +195,40 @@ async processBankTransfer(amount, orderId, bankDetails) {
 
   // Cash on Delivery Payment Processing
 // Cash on Delivery Payment Processing
-  async processCashOnDelivery(amount, orderId, deliveryDetails = {}) {
+async processCashOnDelivery(paymentData) {
     try {
-      // Enhanced input validation with specific error messages
-      if (!amount || amount <= 0) {
-        throw new Error('Invalid payment amount. Amount must be greater than 0.');
+      // Enhanced input validation with comprehensive object structure checking
+      if (!paymentData || typeof paymentData !== 'object') {
+        throw new Error('Payment data is required and must be a valid object.');
       }
+
+      // Extract and validate payment data
+      const {
+        amount,
+        orderId,
+        orderNumber,
+        id,
+        paymentMethod,
+        customerInfo,
+        deliveryAddress,
+        ...additionalData
+      } = paymentData;
+
+      // Determine the correct order ID from multiple possible sources
+      const validOrderId = orderId || orderNumber || id;
       
-      if (!orderId || (typeof orderId === 'string' && orderId.trim() === '')) {
+      if (!validOrderId || (typeof validOrderId === 'string' && validOrderId.trim() === '')) {
+        console.error('COD Processing Error - Missing Order ID:', {
+          paymentData,
+          availableIds: { orderId, orderNumber, id },
+          paymentDataKeys: Object.keys(paymentData)
+        });
         throw new Error('Order ID is required and cannot be empty.');
       }
 
-      // Validate orderId format (should be string or number)
-      if (typeof orderId !== 'string' && typeof orderId !== 'number') {
-        throw new Error('Order ID must be a valid string or number.');
+      // Validate amount
+      if (!amount || amount <= 0) {
+        throw new Error('Invalid payment amount. Amount must be greater than 0.');
       }
 
       // Validate amount is a valid number
@@ -217,13 +237,22 @@ async processBankTransfer(amount, orderId, bankDetails) {
         throw new Error('Payment amount must be a valid positive number.');
       }
 
+      // Validate order ID format (should be string or number)
+      if (typeof validOrderId !== 'string' && typeof validOrderId !== 'number') {
+        throw new Error('Order ID must be a valid string or number.');
+      }
+
       await this.delay();
+
+      // Extract delivery details from various possible sources
+      const deliveryDetails = deliveryAddress || paymentData.deliveryDetails || {};
+      const customerDetails = customerInfo || paymentData.customer || {};
 
       const transaction = {
         id: this.getNextId(),
         transactionId: this.generateTransactionId(),
         reference: this.generateReference(),
-        orderId: String(orderId), // Ensure orderId is stored as string
+        orderId: String(validOrderId), // Ensure orderId is stored as string
         type: 'cash_on_delivery',
         amount: numericAmount,
         fee: 0, // No processing fee for COD
@@ -234,14 +263,23 @@ async processBankTransfer(amount, orderId, bankDetails) {
         deliveryDetails: {
           address: deliveryDetails?.address || '',
           city: deliveryDetails?.city || '',
-          phone: deliveryDetails?.phone || '',
+          phone: deliveryDetails?.phone || customerDetails?.phone || '',
+          email: deliveryDetails?.email || customerDetails?.email || '',
+          name: deliveryDetails?.name || customerDetails?.name || '',
+          postalCode: deliveryDetails?.postalCode || '',
           notes: deliveryDetails?.notes || ''
+        },
+        customerInfo: {
+          name: customerDetails?.name || '',
+          phone: customerDetails?.phone || '',
+          email: customerDetails?.email || ''
         },
         metadata: {
           collectionMethod: 'delivery',
           requiresPhysicalPayment: true,
           estimatedDelivery: deliveryDetails?.estimatedDelivery || null,
-          validatedAt: new Date().toISOString()
+          validatedAt: new Date().toISOString(),
+          originalPaymentData: additionalData
         },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
@@ -261,32 +299,46 @@ async processBankTransfer(amount, orderId, bankDetails) {
     } catch (error) {
       console.error('COD Processing Error:', error);
       
-      // Enhanced error logging with more context
+      // Enhanced error logging with comprehensive context
+      const errorContext = {
+        timestamp: new Date().toISOString(),
+        paymentDataProvided: !!paymentData,
+        paymentDataType: typeof paymentData,
+        paymentDataKeys: paymentData ? Object.keys(paymentData) : [],
+        errorMessage: error.message,
+        errorStack: error.stack
+      };
+
+      // Extract what we can for error transaction
+      const extractedOrderId = paymentData?.orderId || paymentData?.orderNumber || paymentData?.id;
+      const extractedAmount = paymentData?.amount;
+
       const errorTransaction = {
         id: this.getNextId(),
         transactionId: this.generateTransactionId(),
-        orderId: orderId ? String(orderId) : null,
+        orderId: extractedOrderId ? String(extractedOrderId) : null,
         type: 'cash_on_delivery',
-        amount: parseFloat(amount) || 0,
+        amount: parseFloat(extractedAmount) || 0,
         status: 'failed',
         error: error.message,
         errorCode: error.code || 'COD_PROCESSING_ERROR',
         errorContext: {
-          originalAmount: amount,
-          originalOrderId: orderId,
-          deliveryDetails: deliveryDetails
+          ...errorContext,
+          originalPaymentData: paymentData
         },
         createdAt: new Date().toISOString()
       };
       
       this.transactions.push(errorTransaction);
       
+      console.error('COD Processing - Complete Error Context:', errorContext);
+      
       return {
         success: false,
         error: error.message,
         errorCode: error.code || 'COD_PROCESSING_ERROR',
         transaction: errorTransaction
-};
+      };
     }
   }
 
