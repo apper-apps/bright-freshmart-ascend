@@ -1,29 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { useSelector, useDispatch } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
-import { toast } from 'react-hot-toast';
-import { 
-  ShoppingCart, 
-  CreditCard, 
-  MapPin, 
-  User, 
-  Phone, 
-  Mail,
-  CheckCircle,
-  AlertCircle,
-  Loader2,
-  ArrowLeft,
-  Shield,
-  Clock
-} from 'lucide-react';
-import { Button } from '@/components/atoms/Button';
-import { Input } from '@/components/atoms/Input';
-import PaymentMethod from '@/components/molecules/PaymentMethod';
-import ChatWidget from '@/components/molecules/ChatWidget';
-import { clearCart } from '@/store/cartSlice';
-import { orderService } from '@/services/api/orderService';
-import { paymentService } from '@/services/api/paymentService';
-import { formatCurrency } from '@/utils/currency';
+import React, { useEffect, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
+import { toast } from "react-hot-toast";
+import { AlertCircle, ArrowLeft, CheckCircle, CreditCard, Loader2, Mail, MapPin, Phone, Shield, ShoppingCart, User } from "lucide-react";
+import { orderService } from "@/services/api/orderService";
+import { paymentService } from "@/services/api/paymentService";
+import ApperIcon from "@/components/ApperIcon";
+import PaymentMethod from "@/components/molecules/PaymentMethod";
+import ChatWidget from "@/components/molecules/ChatWidget";
+import Error from "@/components/ui/Error";
+import Empty from "@/components/ui/Empty";
+import Account from "@/components/pages/Account";
+import Cart from "@/components/pages/Cart";
+import Input from "@/components/atoms/Input";
+import Button from "@/components/atoms/Button";
+import { clearCart } from "@/store/cartSlice";
+import formatCurrency from "@/utils/currency";
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -31,10 +23,10 @@ const Checkout = () => {
   
   // Redux state
   const { items: cartItems, total: cartTotal } = useSelector(state => state.cart);
-  
-  // Local state
+// Local state
   const [loading, setLoading] = useState(false);
   const [orderSubmitting, setOrderSubmitting] = useState(false);
+  const [paymentGateways, setPaymentGateways] = useState([]);
   const [formData, setFormData] = useState({
     // Customer Information
     firstName: '',
@@ -53,14 +45,14 @@ const Checkout = () => {
     cardNumber: '',
     expiryDate: '',
     cvv: '',
-    nameOnCard: ''
+    nameOnCard: '',
+    transactionId: ''
   });
   
   const [formErrors, setFormErrors] = useState({});
   const [paymentProof, setPaymentProof] = useState(null);
-  const [reservationTimer, setReservationTimer] = useState(15 * 60); // 15 minutes
-
-  // Effects
+  const [paymentProofPreview, setPaymentProofPreview] = useState(null);
+// Effects
   useEffect(() => {
     // Redirect if cart is empty
     if (!cartItems || cartItems.length === 0) {
@@ -69,26 +61,18 @@ const Checkout = () => {
       return;
     }
 
-    // Start reservation timer
-    const timer = setInterval(() => {
-      setReservationTimer(prev => {
-        if (prev <= 1) {
-          toast.error('Reservation expired. Please restart checkout.');
-          navigate('/cart');
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
+    // Load payment gateways
+    loadPaymentGateways();
   }, [cartItems, navigate]);
 
   // Helper functions
-  const formatTime = (seconds) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  const loadPaymentGateways = async () => {
+    try {
+      const gateways = await paymentService.getGatewayConfig();
+      setPaymentGateways(gateways);
+    } catch (error) {
+      console.error('Failed to load payment gateways:', error);
+    }
   };
 
   const validateForm = () => {
@@ -136,10 +120,16 @@ const Checkout = () => {
         errors.nameOnCard = 'Name on card is required';
       }
     }
+// Transaction ID validation for digital wallets
+    if (['jazzcash', 'easypaisa'].includes(formData.paymentMethod)) {
+      if (!formData.transactionId) {
+        errors.transactionId = 'Transaction ID is required for digital wallet payments';
+      }
+    }
 
-    // Payment proof validation (if bank transfer)
-    if (formData.paymentMethod === 'bank_transfer' && !paymentProof) {
-      errors.paymentProof = 'Payment proof is required for bank transfer';
+    // Payment proof validation (if digital wallet or bank transfer)
+    if (['jazzcash', 'easypaisa', 'bank'].includes(formData.paymentMethod) && !paymentProof) {
+      errors.paymentProof = 'Payment proof is required for this payment method';
     }
 
     setFormErrors(errors);
@@ -162,11 +152,18 @@ const Checkout = () => {
     }
   };
 
-  const handlePaymentMethodChange = (method) => {
+const handlePaymentMethodChange = (method) => {
     setFormData(prev => ({
       ...prev,
-      paymentMethod: method
+      paymentMethod: method,
+      transactionId: '' // Reset transaction ID when changing method
     }));
+    
+    // Clear payment proof when changing methods
+    if (!['jazzcash', 'easypaisa', 'bank'].includes(method)) {
+      setPaymentProof(null);
+      setPaymentProofPreview(null);
+    }
   };
 
   const handlePaymentProofUpload = async (file) => {
@@ -183,9 +180,9 @@ const Checkout = () => {
         throw new Error('File size must be less than 5MB');
       }
 
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/heic', 'image/heif'];
       if (!allowedTypes.includes(file.type)) {
-        throw new Error('Only JPEG and PNG files are allowed');
+        throw new Error('Unsupported format - please use JPG/PNG');
       }
 
       // Upload file
@@ -209,7 +206,7 @@ const Checkout = () => {
     }
   };
 
-  const processPayment = async (orderData) => {
+const processPayment = async (orderData) => {
     try {
       let paymentResult = null;
 
@@ -225,15 +222,25 @@ const Checkout = () => {
           });
           break;
 
-        case 'bank_transfer':
-          paymentResult = await paymentService.processBankTransfer({
-            amount: cartTotal,
-            paymentProof: paymentProof,
-            orderId: orderData.id
-          });
+        case 'jazzcash':
+        case 'easypaisa':
+          paymentResult = await paymentService.processDigitalWalletPayment(
+            formData.paymentMethod,
+            cartTotal,
+            orderData.id,
+            formData.phone
+          );
           break;
 
-        case 'cash_on_delivery':
+        case 'bank':
+          paymentResult = await paymentService.processBankTransfer(
+            cartTotal,
+            orderData.id,
+            { paymentProof, transactionId: formData.transactionId }
+          );
+          break;
+
+        case 'cash':
           paymentResult = await paymentService.processCashOnDelivery({
             amount: cartTotal,
             orderId: orderData.id
@@ -314,7 +321,7 @@ const Checkout = () => {
         }
       });
 
-    } catch (error) {
+} catch (error) {
       console.error('Order submission error:', error);
       
       let errorMessage = 'Failed to place order';
@@ -327,6 +334,11 @@ const Checkout = () => {
         errorMessage = 'Some items are no longer available';
       } else if (error.message) {
         errorMessage = error.message;
+      }
+
+      // Show customer support message for persistent failures
+      if (error.isUploadError || errorMessage.includes('upload') || errorMessage.includes('proof')) {
+        errorMessage += '\n\nIf this issue persists, contact support@freshmart.pk';
       }
 
       toast.error(errorMessage);
@@ -383,10 +395,10 @@ const Checkout = () => {
           </div>
           
           {/* Reservation Timer */}
-          <div className="flex items-center space-x-2 bg-orange-50 px-4 py-2 rounded-lg reservation-timer">
-            <Clock className="w-5 h-5 text-orange-600" />
-            <span className="text-orange-600 font-medium">
-              Reserve expires in: {formatTime(reservationTimer)}
+<div className="flex items-center space-x-2 bg-green-50 px-4 py-2 rounded-lg">
+            <CheckCircle className="w-5 h-5 text-green-600" />
+            <span className="text-green-600 font-medium">
+              Secure Checkout - Complete your order
             </span>
           </div>
         </div>
@@ -394,7 +406,7 @@ const Checkout = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Form */}
           <div className="lg:col-span-2">
-            <form onSubmit={handleSubmitOrder} className="space-y-8">
+<form id="checkout-form" onSubmit={handleSubmitOrder} className="space-y-8">
               {/* Customer Information */}
               <div className="card p-6">
                 <div className="flex items-center space-x-3 mb-6">
@@ -507,14 +519,107 @@ const Checkout = () => {
                   <h2 className="text-xl font-semibold">Payment Information</h2>
                 </div>
 
-                <PaymentMethod
+<PaymentMethod
                   selectedMethod={formData.paymentMethod}
                   onMethodChange={handlePaymentMethodChange}
-                  onPaymentProofUpload={handlePaymentProofUpload}
-                  paymentProof={paymentProof}
-                  loading={loading}
-                  errors={formErrors}
+                  paymentGateways={paymentGateways}
                 />
+
+                {/* Dynamic Payment Details */}
+                {['jazzcash', 'easypaisa'].includes(formData.paymentMethod) && (
+                  <div className="mt-6 space-y-4">
+                    {/* Show Gateway Account Details */}
+                    {paymentGateways
+                      .filter(gateway => gateway.type === formData.paymentMethod && gateway.enabled)
+                      .map(gateway => (
+                        <div key={gateway.id} className="p-4 bg-blue-50 rounded-lg">
+                          <h4 className="font-medium text-blue-900 mb-2">
+                            Send payment to {gateway.name}:
+                          </h4>
+                          <div className="flex items-center justify-between bg-white p-3 rounded border">
+                            <div>
+                              <p className="text-sm text-gray-600">Account Name:</p>
+                              <p className="font-mono font-medium">{gateway.accountName}</p>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <div>
+                                <p className="text-sm text-gray-600">Account Number:</p>
+                                <p className="font-mono font-medium">{gateway.accountNumber}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(gateway.accountNumber)
+                                    .then(() => toast.success('Account number copied!'))
+                                    .catch(() => toast.error('Failed to copy'));
+                                }}
+                                className="p-2 text-blue-600 hover:text-blue-800 transition-colors"
+                                title="Copy account number"
+                              >
+                                <ApperIcon name="Copy" size={16} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+
+                    {/* Transaction ID Field */}
+                    <Input
+                      label="Transaction ID"
+                      name="transactionId"
+                      value={formData.transactionId}
+                      onChange={handleInputChange}
+                      error={formErrors.transactionId}
+                      placeholder="Enter transaction ID from your payment app"
+                      required
+                    />
+
+                    {/* Payment Proof Upload */}
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Payment Proof <span className="text-red-500">*</span>
+                      </label>
+<div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              handlePaymentProofUpload(file);
+                              // Create preview
+                              const reader = new FileReader();
+                              reader.onload = (e) => {
+                                setPaymentProofPreview(e.target?.result);
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                          className="hidden"
+                          id="payment-proof"
+                        />
+                        <label htmlFor="payment-proof" className="cursor-pointer">
+                          <ApperIcon name="Upload" size={32} className="mx-auto text-gray-400 mb-2" />
+                          <p className="text-sm text-gray-600">
+                            Upload payment screenshot (JPG, PNG)
+                          </p>
+                        </label>
+                      </div>
+                      {formErrors.paymentProof && (
+                        <p className="text-sm text-red-600">{formErrors.paymentProof}</p>
+                      )}
+                      {paymentProofPreview && (
+                        <div className="mt-2">
+                          <img
+                            src={paymentProofPreview}
+                            alt="Payment proof preview"
+                            className="max-w-full h-32 object-cover rounded border"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 {/* Card Payment Form */}
                 {formData.paymentMethod === 'card' && (
@@ -629,7 +734,7 @@ const Checkout = () => {
               </div>
 
               {/* Place Order Button */}
-              <Button
+<Button
                 type="submit"
                 form="checkout-form"
                 onClick={handleSubmitOrder}
@@ -637,7 +742,7 @@ const Checkout = () => {
                 className="w-full mt-6 btn-primary"
                 size="lg"
               >
-                {orderSubmitting ? (
+{orderSubmitting ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin mr-2" />
                     Processing Order...

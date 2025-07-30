@@ -66,7 +66,8 @@ static shouldRetry(error, attemptCount = 0, maxRetries = 3, context = '') {
             type: 'format_size_error',
             message: error.message,
             timestamp: Date.now(),
-            needsSupport: true
+            needsSupport: true,
+            supportContact: 'support@freshmart.pk'
           }));
           return false;
         }
@@ -77,7 +78,8 @@ static shouldRetry(error, attemptCount = 0, maxRetries = 3, context = '') {
             type: 'unsupported_error',
             message: error.message,
             timestamp: Date.now(),
-            needsAlternatives: true
+            needsAlternatives: true,
+            supportContact: 'support@freshmart.pk'
           }));
           return false;
         }
@@ -99,7 +101,8 @@ static shouldRetry(error, attemptCount = 0, maxRetries = 3, context = '') {
             message: error.message,
             timestamp: Date.now(),
             attemptCount,
-            suggestSupport: true
+            suggestSupport: true,
+            supportContact: 'support@freshmart.pk'
           }));
         }
         
@@ -107,6 +110,26 @@ static shouldRetry(error, attemptCount = 0, maxRetries = 3, context = '') {
       }
       
       return false;
+    }
+    
+    // Checkout-specific error handling
+    if (context.includes('checkout') || context.includes('order')) {
+      // Never retry payment failures - require user intervention
+      if (message.includes('payment') || message.includes('transaction')) {
+        localStorage.setItem('checkout-payment-error', JSON.stringify({
+          type: 'payment_failure',
+          message: error.message,
+          timestamp: Date.now(),
+          requiresSupport: true,
+          supportContact: 'support@freshmart.pk'
+        }));
+        return false;
+      }
+      
+      // Retry network issues for order placement
+      if (type === 'network' && attemptCount < 2) {
+        return true;
+      }
     }
     
     // Original retry logic for non-upload operations
@@ -135,7 +158,7 @@ static shouldRetry(error, attemptCount = 0, maxRetries = 3, context = '') {
   }
 
   // Enhanced error guidance for customer support
-  static getCustomerSupportGuidance(error, context = '') {
+static getCustomerSupportGuidance(error, context = '') {
     const type = this.classifyError(error);
     const message = error.message?.toLowerCase() || '';
     
@@ -145,7 +168,9 @@ static shouldRetry(error, attemptCount = 0, maxRetries = 3, context = '') {
       showEmail: false,
       showFAQ: false,
       showSamples: false,
-      priority: 'normal'
+      priority: 'normal',
+      supportContact: 'support@freshmart.pk',
+      recommendedAction: 'contact_support'
     };
     
     if (context.includes('upload')) {
@@ -156,28 +181,41 @@ static shouldRetry(error, attemptCount = 0, maxRetries = 3, context = '') {
         guidance.showChat = true;
         guidance.showSamples = true;
         guidance.priority = 'high';
+        guidance.recommendedAction = 'try_different_format';
       } else if (message.includes('size') || message.includes('large')) {
         guidance.showChat = true;
         guidance.showFAQ = true;
         guidance.priority = 'medium';
+        guidance.recommendedAction = 'compress_image';
       } else if (type === 'network' || type === 'timeout') {
         guidance.showWhatsApp = true;
         guidance.showEmail = true;
         guidance.priority = 'medium';
+        guidance.recommendedAction = 'check_connection';
       } else {
         // General upload issues
         guidance.showChat = true;
         guidance.showWhatsApp = true;
         guidance.priority = 'high';
+        guidance.recommendedAction = 'contact_support';
       }
-    } else if (context.includes('checkout')) {
+    } else if (context.includes('checkout') || context.includes('payment')) {
       guidance.showChat = true;
       guidance.showWhatsApp = true;
-      guidance.priority = 'high';
+      guidance.showEmail = true;
+      guidance.priority = 'critical';
+      guidance.supportContact = 'support@freshmart.pk';
+      
+      if (message.includes('payment') || message.includes('transaction')) {
+        guidance.recommendedAction = 'verify_payment_details';
+      } else {
+        guidance.recommendedAction = 'retry_checkout';
+      }
     } else {
       // General errors
       guidance.showEmail = true;
       guidance.priority = 'normal';
+      guidance.recommendedAction = 'contact_support';
     }
     
     return guidance;

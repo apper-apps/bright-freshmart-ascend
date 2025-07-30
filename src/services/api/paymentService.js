@@ -168,8 +168,8 @@ async processDigitalWalletPayment(walletType, amount, orderId, phone) {
   }
 
   // Bank Transfer Processing
-  async processBankTransfer(amount, orderId, bankDetails) {
-await this.delay(1500); // Enhanced processing time for image verification
+async processBankTransfer(amount, orderId, bankDetails) {
+    await this.delay(1500); // Enhanced processing time for image verification
 
     const transaction = {
       Id: this.getNextId(),
@@ -177,11 +177,12 @@ await this.delay(1500); // Enhanced processing time for image verification
       amount,
       paymentMethod: 'bank',
       bankAccount: bankDetails?.accountNumber?.slice(-4) || 'XXXX',
+      transactionId: bankDetails?.transactionId || this.generateTransactionId(),
       status: 'pending_verification',
-      transactionId: this.generateTransactionId(),
       timestamp: new Date().toISOString(),
       processingFee: 20,
       requiresVerification: true,
+      paymentProof: bankDetails?.paymentProof,
       gatewayResponse: {
         reference: this.generateReference(),
         instructions: 'Please transfer the amount to the provided bank account and upload the receipt.'
@@ -1024,9 +1025,9 @@ delay(ms = 300) {
       throw new Error('Invalid proof file data');
     }
 
-    const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf'];
+const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/heic', 'image/heif', 'application/pdf'];
     if (!allowedTypes.includes(proofData.fileType)) {
-      throw new Error('Only JPEG, PNG, and PDF files are allowed');
+      throw new Error('Unsupported format - please use JPG/PNG');
     }
 
     if (proofData.fileSize > 5 * 1024 * 1024) { // 5MB limit

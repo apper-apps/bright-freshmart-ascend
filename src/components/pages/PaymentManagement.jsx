@@ -281,8 +281,23 @@ const PaymentGatewayManagement = ({ paymentMethods, onGatewayUpdate }) => {
                     <p className="font-medium">{gateway.accountName || 'Not set'}</p>
                   </div>
                   <div>
-                    <span className="text-gray-500">Account Number:</span>
-                    <p className="font-medium font-mono">{gateway.accountNumber || 'Not set'}</p>
+<span className="text-gray-500">Account Number:</span>
+                    <div className="flex items-center justify-between">
+                      <p className="font-medium font-mono">{gateway.accountNumber || 'Not set'}</p>
+                      {gateway.accountNumber && (
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(gateway.accountNumber)
+                              .then(() => toast.success('Account number copied!'))
+                              .catch(() => toast.error('Failed to copy'));
+                          }}
+                          className="ml-2 p-1 text-blue-600 hover:text-blue-800 transition-colors"
+                          title="Copy account number"
+                        >
+                          <ApperIcon name="Copy" size={16} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <span className="text-gray-500">Fee:</span>
