@@ -149,8 +149,17 @@ async create(orderData) {
     // Initialize vendor availability tracking
     const vendorAvailability = orderData.vendor_availability || {};
     
-const newOrder = {
-      id: this.getNextId(),
+// Generate and validate order ID
+    const orderId = this.getNextId();
+    
+    // Validate generated ID
+    if (!orderId || typeof orderId !== 'number' || orderId <= 0) {
+      console.error('Failed to generate valid order ID:', orderId);
+      throw new Error('Order ID generation failed - please try again');
+    }
+
+    const newOrder = {
+      id: orderId,
       ...orderData,
       // Preserve user-provided transaction ID over payment result transaction ID
       transactionId: orderData.transactionId || orderData.paymentResult?.transactionId || null,
@@ -178,6 +187,12 @@ const newOrder = {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
+
+    // Final validation of created order object
+    if (!newOrder.id || typeof newOrder.id !== 'number') {
+      console.error('Order creation validation failed:', newOrder);
+      throw new Error('Order creation failed - invalid order data');
+    }
     
     // Handle wallet payments with comprehensive error handling
 if (orderData.paymentMethod === 'wallet') {

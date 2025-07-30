@@ -352,14 +352,27 @@ const processPayment = async (orderData) => {
       const createdOrder = await orderService.createOrder(orderData);
 
       // Process payment
+// Validate order creation was successful with proper ID
+      if (!createdOrder || !createdOrder.id || typeof createdOrder.id !== 'number') {
+        throw new Error('Order creation failed - invalid order ID received');
+      }
+
+      console.log('Order created successfully with ID:', createdOrder.id);
+
+      // Process payment with validated order
       const paymentResult = await processPayment(createdOrder);
+
+      // Validate payment result before updating order
+      if (!paymentResult) {
+        throw new Error('Payment processing failed - no result received');
+      }
 
       // Update order with payment info
       await orderService.updateOrder(createdOrder.id, {
         payment: {
           ...orderData.payment,
-          status: paymentResult.status,
-          transactionId: paymentResult.transactionId
+          status: paymentResult.status || 'pending',
+          transactionId: paymentResult.transactionId || null
         }
       });
 
@@ -377,12 +390,15 @@ const processPayment = async (orderData) => {
         }
       });
 
-} catch (error) {
+    } catch (error) {
       console.error('Order submission error:', error);
       
       let errorMessage = 'Failed to place order';
       
-      if (error.response?.status === 400) {
+      // Handle specific error types
+      if (error.message?.includes('Order ID is required') || error.message?.includes('invalid order ID')) {
+        errorMessage = 'Order processing failed. Please try again or contact support.';
+      } else if (error.response?.status === 400) {
         errorMessage = error.response.data?.message || 'Invalid order data';
       } else if (error.response?.status === 402) {
         errorMessage = 'Payment failed. Please check your payment information';
@@ -392,10 +408,16 @@ const processPayment = async (orderData) => {
         errorMessage = error.message;
       }
 
-// Show customer support message for persistent failures
+      // Show customer support message for persistent failures
       if (error.isUploadError || errorMessage.includes('upload') || errorMessage.includes('proof')) {
         errorMessage += '\n\nIf upload issues persist, send payment proof via WhatsApp: +92-300-1234567';
       }
+      
+      // Add support contact for order processing failures
+      if (errorMessage.includes('Order processing failed') || errorMessage.includes('Order creation failed')) {
+        errorMessage += '\n\nFor immediate assistance, contact support: support@freshmart.pk';
+      }
+      
       toast.error(errorMessage);
     } finally {
       setOrderSubmitting(false);

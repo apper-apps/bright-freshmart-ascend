@@ -1,8 +1,18 @@
 // Comprehensive error handling utilities
 export class ErrorHandler {
-  static classifyError(error) {
+static classifyError(error) {
     const message = error.message?.toLowerCase() || '';
     
+    // COD and Order-specific errors
+    if (message.includes('order id is required') || message.includes('invalid order id') || message.includes('order creation failed')) {
+      return 'order-processing';
+    }
+    if (message.includes('cod processing') || message.includes('cash on delivery')) {
+      return 'cod-processing';
+    }
+    if (message.includes('payment processing') || message.includes('payment failed')) {
+      return 'payment-processing';
+    }
     if (message.includes('network') || message.includes('fetch') || message.includes('connection')) {
       return 'network';
     }
@@ -25,11 +35,17 @@ export class ErrorHandler {
     return 'general';
   }
 
-  static createUserFriendlyMessage(error, context = '') {
+static createUserFriendlyMessage(error, context = '') {
     const type = this.classifyError(error);
     const contextPrefix = context ? `${context}: ` : '';
     
     switch (type) {
+      case 'order-processing':
+        return `${contextPrefix}Order processing failed. Please try again or contact support at support@freshmart.pk`;
+      case 'cod-processing':
+        return `${contextPrefix}Cash on delivery processing issue. Please contact support for assistance.`;
+      case 'payment-processing':
+        return `${contextPrefix}Payment processing failed. Please verify your payment details and try again.`;
       case 'network':
         return `${contextPrefix}Network connection issue. Please check your internet connection and try again.`;
       case 'timeout':
@@ -116,8 +132,33 @@ if (context.includes('upload') || context.includes('file')) {
       return false;
     }
     
-    // Checkout-specific error handling
+// Checkout-specific error handling
     if (context.includes('checkout') || context.includes('order')) {
+      // Never retry order processing failures - require immediate attention
+      if (message.includes('order id is required') || message.includes('order creation failed') || message.includes('invalid order id')) {
+        localStorage.setItem('checkout-order-error', JSON.stringify({
+          type: 'order_processing_failure',
+          message: error.message,
+          timestamp: Date.now(),
+          requiresSupport: true,
+          supportContact: 'support@freshmart.pk',
+          urgency: 'high'
+        }));
+        return false;
+      }
+      
+      // Never retry COD processing failures - require user intervention
+      if (message.includes('cod processing') || message.includes('cash on delivery')) {
+        localStorage.setItem('checkout-cod-error', JSON.stringify({
+          type: 'cod_processing_failure',
+          message: error.message,
+          timestamp: Date.now(),
+          requiresSupport: true,
+          supportContact: 'support@freshmart.pk'
+        }));
+        return false;
+      }
+      
       // Never retry payment failures - require user intervention
       if (message.includes('payment') || message.includes('transaction')) {
         localStorage.setItem('checkout-payment-error', JSON.stringify({
@@ -135,7 +176,6 @@ if (context.includes('upload') || context.includes('file')) {
         return true;
       }
     }
-    
     // Original retry logic for non-upload operations
     const retryableTypes = ['network', 'timeout', 'server'];
     
