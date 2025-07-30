@@ -1,4 +1,4 @@
-import ordersData from '@/services/mockData/orders.json';
+import ordersData from "@/services/mockData/orders.json";
 
 // Simulate API delay
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -113,18 +113,30 @@ class OrderService {
       const hasItems = orderData.items && Array.isArray(orderData.items) && orderData.items.length > 0;
       const hasDeliveryAddress = orderData.deliveryAddress || orderData.delivery_address;
       
-      if (!hasCustomerInfo) {
+// Check for customer information - either customerId or customer object with required fields
+      const hasCustomerId = orderData.customerId || orderData.customer_id;
+      const hasCustomerObject = orderData.customer && 
+        orderData.customer.firstName && 
+        orderData.customer.lastName && 
+        orderData.customer.email;
+      
+      if (!hasCustomerId && !hasCustomerObject) {
+        const missingFields = [];
+        if (!hasCustomerId) missingFields.push('customerId or customer_id');
+        if (!hasCustomerObject) missingFields.push('customer object with firstName, lastName, email');
+        
         return {
           success: false,
           error: 'Customer information is required for order creation',
           data: null,
           validationDetails: {
-            missingFields: ['customerId or customer_id'],
-            providedData: Object.keys(orderData)
+            missingFields,
+            providedData: Object.keys(orderData),
+            customerDataReceived: orderData.customer ? Object.keys(orderData.customer) : 'none'
           }
         };
+};
       }
-      
       if (!hasItems) {
         return {
           success: false,
@@ -159,11 +171,12 @@ class OrderService {
       const deliveryFee = orderData.deliveryMethod === 'delivery' ? 50000 : 0;
       const total = subtotal + tax + deliveryFee;
 
-      const newOrder = {
+const newOrder = {
         id: generateId(),
         orderNumber: `ORD-${Date.now()}`,
-        customerId: orderData.customerId,
-        customerInfo: orderData.customerInfo,
+        customerId: orderData.customerId || orderData.customer_id || generateId(), // Generate if not provided
+        customerInfo: orderData.customerInfo || orderData.customer, // Handle both structures
+        customer: orderData.customer, // Keep original customer object
         items: orderData.items,
         subtotal,
         tax,
