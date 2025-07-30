@@ -595,18 +595,39 @@ serializeErrorSafely(error) {
               nodeType: value.nodeType
             };
           }
-          else if (Array.isArray(value)) {
-            result = value.map((item, index) => {
+else if (Array.isArray(value) && value !== null && value !== undefined) {
+            // Additional safety check to ensure value is still an array
+            if (typeof value.map === 'function') {
               try {
-                return serializeValue(item, `[${index}]`, [...currentPath, `[${index}]`]);
-              } catch (itemError) {
-                return {
-                  __type: 'ArrayItemError',
-                  index,
-                  error: itemError.message
+                result = value.map((item, index) => {
+                  try {
+                    return serializeValue(item, `[${index}]`, [...currentPath, `[${index}]`]);
+                  } catch (itemError) {
+                    return {
+                      __type: 'ArrayItemError',
+                      index,
+                      error: itemError.message
+                    };
+                  }
+                });
+              } catch (mapError) {
+                // Fallback if map fails - treat as corrupted array
+                result = {
+                  __type: 'CorruptedArray',
+                  originalLength: value.length || 0,
+                  error: mapError.message,
+                  fallback: String(value)
                 };
               }
-            });
+            } else {
+              // Array-like object without map method
+              result = {
+                __type: 'ArrayLikeObject',
+                length: value.length || 0,
+                hasMapMethod: typeof value.map === 'function',
+                fallback: String(value)
+              };
+            }
           }
           else if (typeof value === 'object' && value !== null) {
             result = {};
@@ -702,8 +723,8 @@ for (const objKey in value) {
 if (typeof message !== 'object' || message === null) {
           // Test if primitive can be cloned (with fallback for environments without structuredClone)
           try {
-            if (typeof structuredClone !== 'undefined') {
-              structuredClone(message);
+            if (typeof globalThis !== 'undefined' && typeof globalThis.structuredClone === 'function') {
+              globalThis.structuredClone(message);
             } else {
               // Fallback for environments without structuredClone
               JSON.parse(JSON.stringify(message));
@@ -812,7 +833,7 @@ else if (value instanceof Error) {
             result = this.serializeErrorSafely(value);
           }
 // Handle File objects (common in forms) - with environment check
-          else if (typeof File !== 'undefined' && value instanceof File) {
+          else if (typeof globalThis !== 'undefined' && typeof globalThis.File !== 'undefined' && value instanceof globalThis.File) {
             result = {
               __type: 'File',
               name: value.name,
@@ -821,8 +842,8 @@ else if (value instanceof Error) {
               lastModified: value.lastModified
             };
           }
-          // Handle Blob objects - with environment check
-          else if (typeof Blob !== 'undefined' && value instanceof Blob) {
+// Handle Blob objects - with environment check
+          else if (typeof globalThis !== 'undefined' && typeof globalThis.Blob !== 'undefined' && value instanceof globalThis.Blob) {
             result = {
               __type: 'Blob',
               size: value.size,
@@ -859,7 +880,7 @@ else if (value instanceof Error) {
             result = { __type: 'Undefined' };
           }
           // Handle DOM nodes
-          else if (value instanceof Node) {
+else if (typeof globalThis !== 'undefined' && typeof globalThis.Node !== 'undefined' && value instanceof globalThis.Node) {
             result = {
               __type: 'DOMNode',
               nodeName: value.nodeName,
@@ -868,9 +889,9 @@ else if (value instanceof Error) {
               id: value.id,
               className: value.className
             };
-}
-// Handle Window objects - with proper environment checks
-          else if (typeof window !== 'undefined' && typeof Window !== 'undefined' && value instanceof Window) {
+          }
+          // Handle Window objects - with proper environment checks
+          else if (typeof globalThis !== 'undefined' && typeof globalThis.Window !== 'undefined' && value instanceof globalThis.Window) {
             result = {
               __type: 'Window',
               origin: value.origin,
@@ -917,15 +938,15 @@ for (const objKey in value) {
             }
           }
 else {
-            // Handle primitive values with clone test (with fallback)
-            try {
-              if (typeof structuredClone !== 'undefined') {
-                structuredClone(value);
+try {
+              if (typeof globalThis !== 'undefined' && typeof globalThis.structuredClone === 'function') {
+                globalThis.structuredClone(value);
               } else {
                 // Fallback for environments without structuredClone
                 JSON.parse(JSON.stringify(value));
               }
               result = value;
+            } catch (cloneError) {
             } catch (cloneError) {
               result = {
                 __type: 'NonCloneablePrimitive',
@@ -1041,9 +1062,8 @@ else {
   
   // Get connection status
   getConnectionStatus() {
-    // Check if we're in a browser environment and WebSocket is available
-    const isWebSocketAvailable = typeof WebSocket !== 'undefined';
-    
+// Check if we're in a browser environment and WebSocket is available
+    const isWebSocketAvailable = typeof globalThis !== 'undefined' && typeof globalThis.WebSocket !== 'undefined';
     return {
       connected: isWebSocketAvailable && this.connection && this.connection.readyState === 1, // 1 = OPEN
       connecting: this.isConnecting,
