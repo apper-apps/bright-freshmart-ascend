@@ -51,17 +51,53 @@ class POSService {
   }
 
 // Payment Integration Methods
-  async processPayment(transactionId, paymentData) {
+async processPayment(transactionId, paymentData) {
     await this.delay();
+    
+    // Validate input parameters
+    if (!transactionId) {
+      throw new Error('Transaction ID is required');
+    }
+    
+    if (!paymentData) {
+      throw new Error('Payment data is required');
+    }
+    
+    // Validate required payment data fields
+    const requiredFields = ['orderId', 'paymentMethod', 'amount'];
+    const missingFields = requiredFields.filter(field => !paymentData[field]);
+    
+    if (missingFields.length > 0) {
+      throw new Error(`Missing required payment fields: ${missingFields.join(', ')}`);
+    }
+    
+    // Special validation for COD payments
+    if (paymentData.paymentMethod === 'COD' || paymentData.paymentMethod === 'cash_on_delivery') {
+      if (!paymentData.orderId) {
+        throw new Error('Order ID is required for COD payments');
+      }
+      if (!paymentData.customerInfo) {
+        throw new Error('Customer information is required for COD payments');
+      }
+    }
+    
     const transaction = this.transactions.find(t => t.id === transactionId);
     if (!transaction) {
       throw new Error('Transaction not found');
     }
 
+    // Ensure paymentData includes orderId if not present
+    const processedPaymentData = {
+      ...paymentData,
+      orderId: paymentData.orderId || transaction.orderId || `ORDER_${transactionId}`,
+      transactionId: transactionId,
+      processedAt: new Date().toISOString()
+    };
+
     const updatedTransaction = {
       ...transaction,
       paymentProcessed: true,
-      paymentData: paymentData,
+      paymentData: processedPaymentData,
       processedAt: new Date().toISOString()
     };
 
