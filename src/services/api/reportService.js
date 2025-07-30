@@ -1,4 +1,4 @@
-import { orderService } from '@/services/api/orderService';
+import orderService from '@/services/api/orderService';
 import { paymentService } from '@/services/api/paymentService';
 
 class ReportService {
