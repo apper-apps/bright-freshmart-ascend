@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import { toast } from "react-toastify";
 import ClipboardService from "@/services/ClipboardService";
-import { orderService } from "@/services/api/orderService";
+import orderService from "@/services/api/orderService";
 import ApperIcon from "@/components/ApperIcon";
 import OrderStatusBadge from "@/components/molecules/OrderStatusBadge";
 import Loading from "@/components/ui/Loading";
