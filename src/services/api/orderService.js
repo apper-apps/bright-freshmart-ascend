@@ -132,10 +132,10 @@ class OrderService {
           validationDetails: {
             missingFields,
             providedData: Object.keys(orderData),
-            customerDataReceived: orderData.customer ? Object.keys(orderData.customer) : 'none'
-          }
-        };
-};
+providedData: Object.keys(orderData),
+          customerDataReceived: orderData.customer ? Object.keys(orderData.customer) : 'none'
+        }
+      };
       }
       if (!hasItems) {
         return {
