@@ -55,16 +55,16 @@ const [paymentProof, setPaymentProof] = useState(null);
   const [paymentProofPreview, setPaymentProofPreview] = useState(null);
   
   // Effects
-  useEffect(() => {
-    // Redirect if cart is empty
+useEffect(() => {
+    // Load payment gateways first
+    loadPaymentGateways();
+    
+    // Then redirect if cart is empty
     if (!cartItems || cartItems.length === 0) {
       toast.error('Your cart is empty');
       navigate('/cart');
       return;
     }
-
-    // Load payment gateways
-    loadPaymentGateways();
   }, [cartItems, navigate]);
 
   // Helper functions

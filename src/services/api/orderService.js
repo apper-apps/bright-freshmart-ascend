@@ -3,7 +3,6 @@ import { notificationService } from "@/services/api/notificationService";
 import webSocketService from "@/services/api/websocketService";
 import { paymentService } from "@/services/api/paymentService";
 import { productService } from "@/services/api/productService";
-
 class OrderService {
   constructor() {
     this.orders = [...ordersData];
@@ -332,10 +331,10 @@ async create(orderData) {
           success: false, 
           error: 'Invalid status',
           message: `Status '${newStatus}' is not valid. Valid statuses: ${validStatuses.join(', ')}`
-        };
+};
       }
 
-const order = ordersData[orderIndex];
+      const order = ordersData[orderIndex];
       const previousStatus = order.status;
       const currentTimestamp = new Date().toISOString();
 
@@ -389,22 +388,21 @@ const order = ordersData[orderIndex];
         error: 'Update failed',
         message: `Failed to update order status: ${error.message}`
       };
+};
     }
   }
 
-  // Get vendor orders
-async getVendorOrdersBasic(vendorId) {
+  async getVendorOrdersBasic(vendorId) {
     try {
       const orders = ordersData.filter(order => 
         order.items.some(item => item.vendorId === vendorId)
       );
       return { success: true, data: orders };
     } catch (error) {
-console.error('Error fetching vendor orders:', error);
+      console.error('Error fetching vendor orders:', error);
       return { success: false, error: error.message };
     }
   }
-
   async delete(id) {
     await this.delay();
     const index = this.orders.findIndex(o => o.id === parseInt(id));
