@@ -287,9 +287,15 @@ this.orders.push(newOrder);
       }
     }
     
-    return { ...newOrder };
+return { ...newOrder };
   }
-async update(id, orderData) {
+
+  // Alias method for backward compatibility - fixes "DR.createOrder is not a function" error
+  async createOrder(orderData) {
+    return await this.create(orderData);
+  }
+
+  async update(id, orderData) {
     await this.delay();
     
     const orderIndex = this.orders.findIndex(o => o.id === parseInt(id));
