@@ -1,6 +1,6 @@
 import React from "react";
 import Error from "@/components/ui/Error";
-import { orderService } from "@/services/api/orderService";
+import orderService from "@/services/api/orderService";
 import { productService } from "@/services/api/productService";
 
 // Mock expense data with proper Id structure
