@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { AlertCircle, ArrowLeft, CheckCircle, CreditCard, Loader2, Mail, MapPin, Phone, Shield, ShoppingCart, User } from "lucide-react";
-import { orderService } from "@/services/api/orderService";
+import orderService from "@/services/api/orderService";
 import { paymentService } from "@/services/api/paymentService";
 import ApperIcon from "@/components/ApperIcon";
 import PaymentMethod from "@/components/molecules/PaymentMethod";
