@@ -9,8 +9,7 @@ import Error from "@/components/ui/Error";
 import Loading from "@/components/ui/Loading";
 import Orders from "@/components/pages/Orders";
 import Home from "@/components/pages/Home";
-import { orderService } from "@/services/api/orderService";
-
+import orderService from "@/services/api/orderService";
 const OrderSummary = () => {
   const { orderId } = useParams();
   const navigate = useNavigate();
