@@ -10,7 +10,7 @@ import webSocketService from "@/services/api/websocketService";
 import { paymentService } from "@/services/api/paymentService";
 import { notificationService } from "@/services/api/notificationService";
 import { reportService } from "@/services/api/reportService";
-import { orderService } from "@/services/api/orderService";
+import orderService from "@/services/api/orderService";
 import { productService } from "@/services/api/productService";
 import { vendorService } from "@/services/api/vendorService";
 import { approvalWorkflowService } from "@/services/api/approvalWorkflowService";
