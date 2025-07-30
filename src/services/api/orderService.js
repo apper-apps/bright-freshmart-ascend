@@ -102,6 +102,32 @@ if (!Object.prototype.hasOwnProperty.call(order, 'status')) {
 async create(orderData) {
     await this.delay();
     
+    // Critical service validation to prevent "DR.createOrder is not a function" errors
+    try {
+      // Validate required services exist and have expected methods
+      if (orderData.paymentMethod === 'wallet') {
+        if (!paymentService || typeof paymentService.processWalletPayment !== 'function') {
+          const error = new Error('Payment service is not available or missing processWalletPayment method');
+          error.code = 'PAYMENT_SERVICE_UNAVAILABLE';
+          error.details = { 
+            serviceExists: !!paymentService,
+            methodExists: !!(paymentService && paymentService.processWalletPayment),
+            serviceType: typeof paymentService,
+            methodType: paymentService ? typeof paymentService.processWalletPayment : 'undefined'
+          };
+          throw error;
+        }
+      }
+      
+      // Validate notification service for vendor alerts
+      if (!notificationService || typeof notificationService.sendVendorOrderAlert !== 'function') {
+        console.warn('Notification service unavailable, vendor alerts will be skipped');
+      }
+    } catch (validationError) {
+      console.error('Service validation failed:', validationError);
+      throw validationError;
+    }
+    
     // Enhanced payment data validation
     if (orderData.paymentMethod && orderData.paymentMethod !== 'cash') {
       if (!orderData.paymentResult && orderData.paymentMethod !== 'wallet') {
@@ -153,17 +179,36 @@ const newOrder = {
       updatedAt: new Date().toISOString()
     };
     
-    // Handle wallet payments
+    // Handle wallet payments with comprehensive error handling
 if (orderData.paymentMethod === 'wallet') {
       try {
+        // Double-check service availability before calling
+        if (!paymentService?.processWalletPayment) {
+          throw new Error('Wallet payment service method not available');
+        }
+        
         const walletTransaction = await paymentService.processWalletPayment(orderData.total, newOrder.id);
+        
+        // Validate wallet transaction response
+        if (!walletTransaction) {
+          throw new Error('Wallet payment returned null/undefined response');
+        }
+        
         newOrder.paymentResult = walletTransaction;
         newOrder.paymentStatus = 'completed';
       } catch (walletError) {
-        // Enhanced wallet error handling
-        const error = new Error('Wallet payment failed: ' + walletError.message);
+        // Enhanced wallet error handling with detailed context
+        const error = new Error(`Wallet payment failed: ${walletError.message}`);
         error.code = walletError.code || 'WALLET_PAYMENT_FAILED';
         error.originalError = walletError;
+        error.context = {
+          orderId: newOrder.id,
+          amount: orderData.total,
+          paymentServiceAvailable: !!paymentService,
+          methodAvailable: !!(paymentService?.processWalletPayment),
+          timestamp: new Date().toISOString()
+        };
+        console.error('Wallet payment processing failed:', error);
         throw error;
       }
     }
@@ -207,9 +252,13 @@ if (orderData.paymentMethod === 'wallet') {
     
 this.orders.push(newOrder);
     
-    // Send email/SMS alerts to vendors for new orders
+    // Send email/SMS alerts to vendors for new orders with error handling
     try {
-      await notificationService.sendVendorOrderAlert(newOrder);
+      if (notificationService?.sendVendorOrderAlert) {
+        await notificationService.sendVendorOrderAlert(newOrder);
+      } else {
+        console.warn('Notification service or sendVendorOrderAlert method not available');
+      }
     } catch (alertError) {
       console.warn('Vendor alert notification failed:', alertError);
     }
