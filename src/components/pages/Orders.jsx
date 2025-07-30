@@ -2,16 +2,16 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { format } from "date-fns";
 import { toast } from "react-toastify";
-import { formatCurrency } from "@/utils/currency";
-import { clipboardService } from "@/services/ClipboardService";
+import ClipboardService from "@/services/ClipboardService";
 import { orderService } from "@/services/api/orderService";
 import ApperIcon from "@/components/ApperIcon";
-import { Badge } from "@/components/atoms/Badge";
-import { Button } from "@/components/atoms/Button";
 import OrderStatusBadge from "@/components/molecules/OrderStatusBadge";
+import Loading from "@/components/ui/Loading";
 import Error from "@/components/ui/Error";
 import Empty from "@/components/ui/Empty";
-import Loading from "@/components/ui/Loading";
+import Badge from "@/components/atoms/Badge";
+import Button from "@/components/atoms/Button";
+import { formatCurrency } from "@/utils/currency";
 // Order status color mapping for better visual tracking
 const getStatusColors = (status, verificationStatus) => {
   if (status === 'pending' || verificationStatus === 'pending') {
@@ -55,6 +55,9 @@ const Orders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Initialize clipboard service
+  const clipboardService = new ClipboardService();
 
   useEffect(() => {
     loadOrders();
