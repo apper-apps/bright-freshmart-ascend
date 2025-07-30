@@ -7,9 +7,8 @@ import Button from '@/components/atoms/Button';
 import Loading from '@/components/ui/Loading';
 import Error from '@/components/ui/Error';
 import Badge from '@/components/atoms/Badge';
-import { orderService } from '@/services/api/orderService';
+import orderService from '@/services/api/orderService';
 import { productService } from '@/services/api/productService';
-
 const Analytics = () => {
   const [data, setData] = useState({
     orders: [],
