@@ -1,5 +1,3 @@
-import React from "react";
-import Error from "@/components/ui/Error";
 class WebSocketService {
   constructor() {
     this.connection = null;
@@ -1169,10 +1167,12 @@ try {
     });
   }
   
-  // Request order sync for specific order
+// Request order sync for specific order
   requestOrderSync(orderId) {
     return this.sendOrderSyncMessage('request_update', { orderId });
-// Send order status change
+  }
+
+  // Send order status change
   sendOrderStatusChange(orderId, newStatus, additionalData = {}) {
     return this.sendOrderSyncMessage('status_change', {
       orderId,
@@ -1180,7 +1180,6 @@ try {
       ...additionalData
     });
   }
-}
 }
 
 // Create singleton instance
