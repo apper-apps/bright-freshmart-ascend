@@ -230,8 +230,8 @@ async create(orderData) {
     }
     
     console.log('OrderService.create: Order validation passed for ID:', newOrder.id);
-    // Handle wallet payments with comprehensive error handling
-if (orderData.paymentMethod === 'wallet') {
+// Handle wallet payments with comprehensive error handling
+    if (orderData.paymentMethod === 'wallet') {
       try {
         // Double-check service availability before calling
         if (!paymentService?.processWalletPayment) {
@@ -261,7 +261,8 @@ if (orderData.paymentMethod === 'wallet') {
         };
         console.error('Wallet payment processing failed:', error);
         throw error;
-}
+      }
+    }
     
     // Real-time order sync - broadcast to vendors immediately
     if (typeof window !== 'undefined' && window.webSocketService) {

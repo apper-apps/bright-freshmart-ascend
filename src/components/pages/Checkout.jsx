@@ -184,8 +184,7 @@ const handlePaymentProofUpload = async (file) => {
 }
 
       const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/heic', 'image/heif'];
-      if (!allowedTypes.includes(file.type)) {
-        throw new Error('Unsupported format - please use JPG/PNG');
+if (!allowedTypes.includes(file.type)) {
         throw new Error('Unsupported format - please use JPG/PNG');
       }
 
@@ -651,13 +650,11 @@ status: 'pending'
                   <h2 className="text-xl font-semibold">Payment Information</h2>
 </div>
 
-                <PaymentMethod
+<PaymentMethod
                   selectedMethod={formData.paymentMethod}
-                  onMethodChange={handlePaymentMethodChange}
                   onMethodChange={handlePaymentMethodChange}
                   paymentGateways={paymentGateways}
                 />
-
                 {/* Dynamic Payment Details */}
                 {['jazzcash', 'easypaisa'].includes(formData.paymentMethod) && (
                   <div className="mt-6 space-y-4">
@@ -970,8 +967,7 @@ status: 'pending'
               </div>
 {/* Place Order Button */}
               <Button
-                type="submit"
-                form="checkout-form"
+type="submit"
                 form="checkout-form"
                 onClick={handleSubmitOrder}
                 disabled={orderSubmitting || loading}
