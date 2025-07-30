@@ -397,18 +397,27 @@ status: 'pending'
         }
       };
 
-      // Create order with enhanced data
-      const createdOrder = await orderService.createOrder(enhancedOrderData);
+// Create order with enhanced data
+      const orderResponse = await orderService.createOrder(enhancedOrderData);
+
+      // Validate order service response
+      if (!orderResponse || !orderResponse.success || !orderResponse.data) {
+        console.error('Order service returned invalid response:', JSON.stringify(orderResponse, null, 2));
+        throw new Error('Order creation failed - invalid service response');
+      }
+
+      const createdOrder = orderResponse.data;
 
       // Process payment
       // Enhanced order validation with detailed error context
-      if (!createdOrder || !createdOrder.id || typeof createdOrder.id !== 'number') {
-        console.error('Order creation validation failed:', {
+      if (!createdOrder || !createdOrder.id) {
+        console.error('Order creation validation failed:', JSON.stringify({
+          orderResponse: orderResponse,
           createdOrder: createdOrder,
           hasId: !!createdOrder?.id,
           idType: typeof createdOrder?.id,
           idValue: createdOrder?.id
-        });
+        }, null, 2));
         throw new Error('Order creation failed - invalid order ID received');
       }
 
@@ -448,11 +457,24 @@ status: 'pending'
     } catch (error) {
       console.error('Order submission error:', error);
       
-      let errorMessage = 'Failed to place order';
+let errorMessage = 'Failed to place order';
+      
+      // Enhanced error logging with proper object stringification
+      console.error('Order submission error details:', {
+        message: error.message,
+        stack: error.stack,
+        response: error.response ? {
+          status: error.response.status,
+          data: error.response.data
+        } : null,
+        orderData: enhancedOrderData ? JSON.stringify(enhancedOrderData, null, 2) : null
+      });
       
       // Handle specific error types
       if (error.message?.includes('Order ID is required') || error.message?.includes('invalid order ID')) {
         errorMessage = 'Order processing failed. Please try again or contact support.';
+      } else if (error.message?.includes('Order creation failed') || error.message?.includes('invalid service response')) {
+        errorMessage = 'Order creation failed. Please try again or contact support.';
       } else if (error.response?.status === 400) {
         errorMessage = error.response.data?.message || 'Invalid order data';
       } else if (error.response?.status === 402) {

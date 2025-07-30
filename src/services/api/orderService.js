@@ -157,13 +157,33 @@ class OrderService {
       return {
         success: true,
         data: newOrder,
-        message: 'Order created successfully'
+message: 'Order created successfully'
       };
     } catch (error) {
       console.error('Error creating order:', error);
+      
+      // Enhanced error logging with validation details
+      const errorDetails = {
+        message: error.message,
+        stack: error.stack,
+        orderDataProvided: !!orderData,
+        orderDataKeys: orderData ? Object.keys(orderData) : [],
+        validationErrors: []
+      };
+      
+      // Add specific validation context
+      if (!orderData?.customerId) {
+        errorDetails.validationErrors.push('Missing customerId');
+      }
+      if (!orderData?.items || orderData.items.length === 0) {
+        errorDetails.validationErrors.push('Missing or empty items array');
+      }
+      
+      console.error('Order creation error details:', JSON.stringify(errorDetails, null, 2));
+      
       return {
         success: false,
-        error: 'Failed to create order',
+        error: error.message || 'Failed to create order',
         data: null
       };
     }
