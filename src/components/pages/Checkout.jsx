@@ -345,8 +345,11 @@ break;
     }
   };
 
-  const handleSubmitOrder = async (e) => {
+const handleSubmitOrder = async (e) => {
     e.preventDefault();
+
+    // Initialize enhancedOrderData outside try block to ensure scope accessibility
+    let enhancedOrderData = null;
 
     try {
       // Validate form
@@ -376,11 +379,11 @@ break;
           method: formData.paymentMethod,
           amount: cartTotal
         },
-status: 'pending'
+        status: 'pending'
       };
 
       // Enhanced order data preparation with payment method context
-      const enhancedOrderData = {
+      enhancedOrderData = {
         ...orderData,
         paymentMethod: formData.paymentMethod,
         transactionId: formData.transactionId || null,
@@ -397,7 +400,7 @@ status: 'pending'
         }
       };
 
-// Create order with enhanced data
+      // Create order with enhanced data
       const orderResponse = await orderService.createOrder(enhancedOrderData);
 
       // Validate order service response
@@ -426,7 +429,7 @@ status: 'pending'
       // Process payment with validated order and comprehensive data
       const paymentResult = await processPayment({...createdOrder, ...enhancedOrderData});
 
-// Validate payment result before updating order
+      // Validate payment result before updating order
       if (!paymentResult) {
         throw new Error('Payment processing failed - no result received');
       }
@@ -457,7 +460,7 @@ status: 'pending'
     } catch (error) {
       console.error('Order submission error:', error);
       
-let errorMessage = 'Failed to place order';
+      let errorMessage = 'Failed to place order';
       
       // Enhanced error logging with proper object stringification and defensive checks
       const errorContext = {
@@ -471,7 +474,7 @@ let errorMessage = 'Failed to place order';
       
       // Safely add order data if available - check if variable exists in scope
       try {
-        if (typeof enhancedOrderData !== 'undefined' && enhancedOrderData) {
+        if (enhancedOrderData) {
           errorContext.orderData = JSON.stringify(enhancedOrderData, null, 2);
         } else {
           errorContext.orderData = 'Order data not available (error occurred before creation)';
